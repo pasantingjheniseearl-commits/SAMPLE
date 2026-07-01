@@ -2317,21 +2317,27 @@ async function loadAdminUsers() {
         return;
       }
 
-      listEl.innerHTML = users.map(u => `
+      listEl.innerHTML = users.map(u => {
+        const name   = u.full_name || u.name || '(No name)';
+        const email  = u.email || '(No email)';
+        const status = u.status || 'unknown';
+        const role   = u.role || 'Operator';
+        const id     = u.id || '';
+        return `
         <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:12px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div style="font-weight:600; font-size:14px; margin-bottom:4px;">${u.full_name}</div>
-            <div style="font-size:12px; color:var(--text-muted);">${u.email} &bull; <span style="color:${u.status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${(u.status || 'unknown').toUpperCase()}</span></div>
+            <div style="font-weight:600; font-size:14px; margin-bottom:4px;">${name}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${email} &bull; <span style="color:${status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${status.toUpperCase()}</span></div>
           </div>
           <div style="display:flex; gap:8px;">
-            ${u.status === 'pending' ? `<button class="btn btn-secondary" onclick="WMSAuth.approveUser('${u.id}').then(()=>loadAdminUsers())" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
-            <select onchange="WMSAuth.changeUserRole('${u.id}', this.value).then(()=>loadAdminUsers())" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
-              <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
-              <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
+            ${status === 'pending' ? `<button class="btn btn-secondary" onclick="WMSAuth.approveUser('${id}').then(()=>loadAdminUsers())" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
+            <select onchange="WMSAuth.changeUserRole('${id}', this.value).then(()=>loadAdminUsers())" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
+              <option value="Operator" ${role === 'Operator' ? 'selected' : ''}>Operator</option>
+              <option value="Administrator" ${role === 'Administrator' ? 'selected' : ''}>Administrator</option>
             </select>
           </div>
         </div>
-      `).join('');
+      `}).join('');
     } catch (err) {
       listEl.innerHTML = `<div style="color:var(--danger-color);text-align:center;padding:20px;">Error loading users: ${err.message}</div>`;
     }
@@ -2357,16 +2363,21 @@ async function renderApprovalsSection() {
 
       tbody.innerHTML = users.map(u => {
         const isBypass = u.id === '00000000-0000-0000-0000-000000000000';
+        const name   = u.full_name || u.name || '(No name)';
+        const email  = u.email || '(No email)';
+        const status = u.status || 'unknown';
+        const role   = u.role || 'Operator';
+        const id     = u.id || '';
         
         let statusBadgeClass = 'pending';
-        if (u.status === 'approved') statusBadgeClass = 'approved';
-        if (u.status === 'rejected') statusBadgeClass = 'rejected';
+        if (status === 'approved') statusBadgeClass = 'approved';
+        if (status === 'rejected') statusBadgeClass = 'rejected';
 
         let actionButtons = '';
-        if (u.status === 'pending') {
+        if (status === 'pending') {
           actionButtons = `
-            <button class="btn btn-secondary approve-btn" data-id="${u.id}" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>
-            <button class="btn btn-secondary reject-btn" data-id="${u.id}" style="padding:6px 10px; font-size:12px; color:var(--danger-color); border-color:var(--danger-color); margin-left:6px;"><i class="fa-solid fa-xmark"></i> Reject</button>
+            <button class="btn btn-secondary approve-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>
+            <button class="btn btn-secondary reject-btn" data-id="${id}" style="padding:6px 10px; font-size:12px; color:var(--danger-color); border-color:var(--danger-color); margin-left:6px;"><i class="fa-solid fa-xmark"></i> Reject</button>
           `;
         } else {
           actionButtons = `
@@ -2374,20 +2385,20 @@ async function renderApprovalsSection() {
           `;
         }
 
-        const roleDropdown = isBypass 
-          ? `<span style="font-weight:600; font-size:12px;">${u.role}</span>`
+        const roleDropdown = isBypass
+          ? `<span style="font-weight:600; font-size:12px;">${role}</span>`
           : `
-            <select class="role-select" data-id="${u.id}" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
-              <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
-              <option value="Administrator" ${u.role === 'Administrator' ? 'selected' : ''}>Administrator</option>
+            <select class="role-select" data-id="${id}" style="padding:6px; font-size:12px; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
+              <option value="Operator" ${role === 'Operator' ? 'selected' : ''}>Operator</option>
+              <option value="Administrator" ${role === 'Administrator' ? 'selected' : ''}>Administrator</option>
             </select>
           `;
 
         return `
           <tr>
-            <td style="font-weight:700;">${u.full_name}</td>
-            <td>${u.email}</td>
-            <td><span class="status-badge ${statusBadgeClass}">${(u.status || 'unknown').toUpperCase()}</span></td>
+            <td style="font-weight:700;">${name}</td>
+            <td>${email}</td>
+            <td><span class="status-badge ${statusBadgeClass}">${status.toUpperCase()}</span></td>
             <td>${roleDropdown}</td>
             <td>${isBypass ? '<span style="font-size:12px; color:var(--text-muted);">Default Admin</span>' : actionButtons}</td>
           </tr>
