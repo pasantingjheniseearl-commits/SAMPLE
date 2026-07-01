@@ -409,6 +409,9 @@
     // ── Tab switcher ─────────────────────────────────────────────
     function switchTab(tab) {
       hideMsg();
+      const pendingNotice = document.getElementById('pending-notice');
+      if (pendingNotice) pendingNotice.style.display = 'none';
+
       document.getElementById('panel-signin').style.display = tab === 'signin' ? '' : 'none';
       document.getElementById('panel-signup').style.display = tab === 'signup' ? '' : 'none';
       document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
@@ -472,47 +475,44 @@
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    function registerLocalUser(name, email, password) {
-      // Hash is computed async; wrap in async IIFE
-      (async () => {
-        try {
-          const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-          if (localUsers.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-            showMsg('A local user with this email already exists.');
-            setLoading('btn-signup', false);
-            return;
-          }
+    async function registerLocalUser(name, email, password) {
+      try {
+        const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
+        if (localUsers.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+          showMsg('A local user with this email already exists.');
+          setLoading('btn-signup', false);
+          return;
+        }
 
-          const isFirst = localUsers.length === 0;
-          const role = isFirst ? 'Administrator' : 'Operator';
-          const status = isFirst ? 'approved' : 'pending';
+        const isFirst = localUsers.length === 0;
+        const role = isFirst ? 'Administrator' : 'Operator';
+        const status = isFirst ? 'approved' : 'pending';
 
-          const newUser = {
-            id: 'local-' + Math.random().toString(36).substring(2, 11),
-            name,
-            email,
-            passwordHash: await hashPassword(password),
-            role,
-            status,
-            created_at: new Date().toISOString()
-          };
+        const newUser = {
+          id: 'local-' + Math.random().toString(36).substring(2, 11),
+          name,
+          email,
+          passwordHash: await hashPassword(password),
+          role,
+          status,
+          created_at: new Date().toISOString()
+        };
 
-          localUsers.push(newUser);
-          localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
+        localUsers.push(newUser);
+        localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
 
-          if (isFirst || status === 'approved') {
-            logInAsLocalUser(newUser);
-          } else {
-            document.getElementById('form-signup').style.display = 'none';
-            document.getElementById('pending-notice').style.display = 'block';
-            showMsg('Local request submitted. Awaiting admin approval.', 'success');
-            setLoading('btn-signup', false);
-          }
-        } catch (err) {
-          showMsg('Local registration failed: ' + err.message);
+        if (isFirst || status === 'approved') {
+          logInAsLocalUser(newUser);
+        } else {
+          document.getElementById('form-signup').style.display = 'none';
+          document.getElementById('pending-notice').style.display = 'block';
+          showMsg('Local request submitted. Awaiting admin approval.', 'success');
           setLoading('btn-signup', false);
         }
-      })();
+      } catch (err) {
+        showMsg('Local registration failed: ' + err.message);
+        setLoading('btn-signup', false);
+      }
     }
 
     function logInAsLocalUser(userObj) {

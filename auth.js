@@ -225,9 +225,7 @@ window.WMSAuth = {
 
     const payload = {
       id: userId,
-      user_id: userId,
       full_name,
-      name: full_name,
       phone,
       department,
       updated_at: new Date().toISOString()
