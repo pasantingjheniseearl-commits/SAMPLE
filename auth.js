@@ -102,13 +102,16 @@ window.WMSAuth = {
     localStorage.removeItem('wms_bypass_profile');
     try {
       if (authSb) {
-        await authSb.from('login_log').insert({
+        // Fire and forget — don't block signout on log insert
+        authSb.from('login_log').insert({
           user_id: this.session?.user?.id,
           email: this.profile?.email,
           full_name: this.profile?.full_name,
           timestamp: new Date().toISOString(),
           event: 'logout'
-        }).catch(() => {});
+        }).then(() => {}).catch(() => {});
+        // Small delay to let the insert fire before redirect
+        await new Promise(r => setTimeout(r, 150));
       }
     } catch (_) {}
     if (authSb) await authSb.auth.signOut();
@@ -161,10 +164,10 @@ window.WMSAuth = {
   // Mark all admin notifications as read
   async markNotificationsRead() {
     if (authSb) {
-      await authSb.from('admin_notifications')
+      authSb.from('admin_notifications')
         .update({ read: true })
         .eq('read', false)
-        .catch(() => {});
+        .then(() => {}).catch(() => {});
     }
     const dot = document.querySelector('.notif-dot');
     if (dot) dot.remove();

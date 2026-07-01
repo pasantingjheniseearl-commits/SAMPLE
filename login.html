@@ -616,13 +616,13 @@
           }
 
           // Log the login activity for audit
-          await sb.from('login_log').insert({
+          sb.from('login_log').insert({
             user_id: data.user.id,
             email: data.user.email,
             full_name: profile.full_name,
             timestamp: new Date().toISOString(),
             event: 'login'
-          }).catch(() => {}); // non-blocking
+          }).then(() => {}).catch(() => {}); // non-blocking, fire and forget
 
           window.location.replace('index.html');
         } catch (sbErr) {
