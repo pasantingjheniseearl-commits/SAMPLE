@@ -2476,7 +2476,6 @@ async function renderApprovalsSection() {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">User approval functions require live Supabase auth.</td></tr>';
   }
 }
-window.loadAdminUsers = renderApprovalsSection;
 
 // Real-time Audit Log & Activity tracking
 const WMSActivityLog = {
