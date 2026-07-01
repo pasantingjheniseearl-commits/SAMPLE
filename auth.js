@@ -50,11 +50,11 @@ window.WMSAuth = {
       return;
     }
 
-    // Fetch profile and verify still approved
-    const { data: profile } = await authSb.from('user_profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .maybeSingle();
+    // Fetch profile using RPC — avoids RLS session timing issues
+    const { data: profileRows } = await authSb.rpc('get_my_profile', {
+      user_id: session.user.id
+    });
+    const profile = profileRows && profileRows.length > 0 ? profileRows[0] : null;
 
     if (!profile || profile.status !== 'approved') {
       await authSb.auth.signOut();
@@ -180,11 +180,10 @@ window.WMSAuth = {
       return JSON.parse(localStorage.getItem('wms_bypass_profile'));
     }
     if (!authSb) return this.profile || null;
-    const { data } = await authSb.from('user_profiles')
-      .select('*')
-      .eq('id', this.session.user.id)
-      .maybeSingle();
-    return data;
+    const { data: profileRows } = await authSb.rpc('get_my_profile', {
+      user_id: this.session.user.id
+    });
+    return profileRows && profileRows.length > 0 ? profileRows[0] : null;
   },
 
   async updateProfile({ full_name, phone, department }) {
