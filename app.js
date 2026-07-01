@@ -161,34 +161,48 @@ function updateGlobalHeaderProfile() {
 
 // Enforce role-based page and sidebar menu permissions
 function enforceUserPermissions() {
-  const user = WMSDatabase.getCurrentUser();
+  // Prefer WMSAuth profile (Supabase) over localStorage — more trustworthy
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const user = authProfile
+    ? { role: authProfile.role, name: authProfile.full_name }
+    : WMSDatabase.getCurrentUser();
+
   const isOperator = user && user.role === 'Operator';
-  
-  // Show or hide admin-only elements
+
+  // Show or hide admin-only sidebar items
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isOperator ? 'none' : '';
   });
 
-  // If operator is on an admin-restricted view, redirect to dashboard
+  // If operator is on a restricted view, force redirect to dashboard
+  const restrictedViews = ['view-barcode', 'view-reports', 'view-settings', 'view-approvals', 'view-activity-log'];
   const activeLink = document.querySelector('.sidebar .menu a.active');
   if (activeLink) {
     const activeView = activeLink.getAttribute('data-view');
-    const restrictedViews = ['view-barcode', 'view-reports', 'view-settings', 'view-approvals', 'view-activity-log'];
     if (isOperator && restrictedViews.includes(activeView)) {
-      showToast('Access Denied: Operators are restricted to Dashboard and Inventory logs only.', 'warning');
-      const dashLink = document.querySelector('[data-view="view-dashboard"]');
-      if (dashLink) {
-        // Switch sidebar menu link focus
-        document.querySelectorAll('.sidebar .menu a').forEach(l => l.classList.remove('active'));
-        dashLink.classList.add('active');
-        // Switch page active class
-        document.querySelectorAll('.main .page-view').forEach(p => p.classList.remove('active'));
-        const pageView = document.getElementById('view-dashboard');
-        if (pageView) pageView.classList.add('active');
-        onViewActivated('view-dashboard');
-      }
+      showToast('Access Denied: Operators cannot access this section.', 'warning');
+      _redirectToDashboard();
     }
   }
+
+  // Also guard direct navigation — if the active page-view is restricted, redirect
+  restrictedViews.forEach(viewId => {
+    const el = document.getElementById(viewId);
+    if (el && el.classList.contains('active') && isOperator) {
+      showToast('Access Denied: Operators cannot access this section.', 'warning');
+      _redirectToDashboard();
+    }
+  });
+}
+
+function _redirectToDashboard() {
+  document.querySelectorAll('.sidebar .menu a').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.main .page-view').forEach(p => p.classList.remove('active'));
+  const dashLink = document.querySelector('[data-view="view-dashboard"]');
+  if (dashLink) dashLink.classList.add('active');
+  const dashView = document.getElementById('view-dashboard');
+  if (dashView) dashView.classList.add('active');
+  onViewActivated('view-dashboard');
 }
 
 
