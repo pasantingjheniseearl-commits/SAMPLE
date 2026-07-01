@@ -237,12 +237,16 @@ window.WMSAuth = {
       .update(updates)
       .eq('id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     data = updateResult.data;
     error = updateResult.error;
 
-    if (error && error.message && error.message.includes('Result contains no rows')) {
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
       const insertResult = await authSb.from('user_profiles')
         .insert({
           id: userId,
@@ -252,12 +256,11 @@ window.WMSAuth = {
           ...updates
         })
         .select()
-        .single();
+        .maybeSingle();
       data = insertResult.data;
       error = insertResult.error;
+      if (error) throw error;
     }
-
-    if (error) throw error;
 
     if (!data || data.id !== userId) {
       const verifyResult = await authSb.from('user_profiles')
@@ -340,12 +343,24 @@ window.WMSAuth = {
     let users = [];
     if (authSb) {
       try {
-        const { data } = await authSb.from('user_profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (data) users = [...data];
+        // Prefer a database function that can return all user profiles for admins.
+        const { data: rpcData, error: rpcError } = await authSb.rpc('get_all_user_profiles');
+        if (!rpcError && Array.isArray(rpcData)) {
+          users = [...rpcData];
+        } else {
+          if (rpcError) {
+            console.warn('[WMS] getAllUsers RPC unavailable, falling back to direct user_profiles query:', rpcError.message || rpcError);
+          }
+          const { data, error } = await authSb.from('user_profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (error) {
+            throw error;
+          }
+          if (data) users = [...data];
+        }
       } catch (err) {
-        console.error(err);
+        console.error('[WMS] getAllUsers failed:', err);
       }
     }
     // Normalize all rows — user_profiles uses full_name, local users may use name
