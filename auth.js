@@ -122,7 +122,7 @@ window.WMSAuth = {
   _renderHeaderUser() {
     const p = this.profile;
     if (!p) return;
-    const initials = p.full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    const initials = (p.full_name || '?').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     const badge = document.getElementById('global-profile-initials');
     const nameEl = document.getElementById('global-header-username');
     if (badge) badge.textContent = initials;

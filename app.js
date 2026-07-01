@@ -2321,7 +2321,7 @@ async function loadAdminUsers() {
         <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:12px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div style="font-weight:600; font-size:14px; margin-bottom:4px;">${u.full_name}</div>
-            <div style="font-size:12px; color:var(--text-muted);">${u.email} &bull; <span style="color:${u.status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${u.status.toUpperCase()}</span></div>
+            <div style="font-size:12px; color:var(--text-muted);">${u.email} &bull; <span style="color:${u.status === 'pending' ? 'var(--warning-color)' : 'var(--text-secondary)'}">${(u.status || 'unknown').toUpperCase()}</span></div>
           </div>
           <div style="display:flex; gap:8px;">
             ${u.status === 'pending' ? `<button class="btn btn-secondary" onclick="WMSAuth.approveUser('${u.id}').then(()=>loadAdminUsers())" style="padding:6px 10px; font-size:12px; color:var(--success-color); border-color:var(--success-color);"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
@@ -2387,7 +2387,7 @@ async function renderApprovalsSection() {
           <tr>
             <td style="font-weight:700;">${u.full_name}</td>
             <td>${u.email}</td>
-            <td><span class="status-badge ${statusBadgeClass}">${u.status.toUpperCase()}</span></td>
+            <td><span class="status-badge ${statusBadgeClass}">${(u.status || 'unknown').toUpperCase()}</span></td>
             <td>${roleDropdown}</td>
             <td>${isBypass ? '<span style="font-size:12px; color:var(--text-muted);">Default Admin</span>' : actionButtons}</td>
           </tr>
