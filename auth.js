@@ -251,9 +251,14 @@ window.WMSAuth = {
         console.error(err);
       }
     }
-    const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-    const localPending = localUsers.filter(u => u.status === 'pending');
-    return [...pending, ...localPending];
+    return pending.map(u => ({
+      id:        u.id        || '',
+      email:     u.email     || '',
+      full_name: u.full_name || u.name || '(No name)',
+      role:      u.role      || 'Operator',
+      status:    u.status    || 'pending',
+      created_at: u.created_at || ''
+    }));
   },
 
   async getAllUsers() {
@@ -268,46 +273,32 @@ window.WMSAuth = {
         console.error(err);
       }
     }
-    const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-    return [...users, ...localUsers];
+    // Normalize all rows — user_profiles uses full_name, local users may use name
+    return users.map(u => ({
+      id:        u.id        || '',
+      email:     u.email     || '',
+      full_name: u.full_name || u.name || '(No name)',
+      role:      u.role      || 'Operator',
+      status:    u.status    || 'unknown',
+      created_at: u.created_at || ''
+    }));
   },
 
   async approveUser(userId) {
     if (this.profile?.role !== 'Administrator') throw new Error('Admin only');
-    
-    if (String(userId).startsWith('local-')) {
-      const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-      const idx = localUsers.findIndex(u => u.id === userId);
-      if (idx !== -1) {
-        localUsers[idx].status = 'approved';
-        localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
-      }
-      return;
-    }
-
     if (!authSb) return;
     const { error } = await authSb.from('user_profiles')
       .update({ status: 'approved', updated_at: new Date().toISOString() })
       .eq('id', userId);
     if (error) throw error;
-    await authSb.from('admin_notifications')
-      .update({ read: true })
-      .eq('user_id', userId);
+    // Mark notification read — fire and forget
+    authSb.from('admin_notifications')
+      .update({ read: true }).eq('user_id', userId)
+      .then(() => {}).catch(() => {});
   },
 
   async rejectUser(userId) {
     if (this.profile?.role !== 'Administrator') throw new Error('Admin only');
-
-    if (String(userId).startsWith('local-')) {
-      const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-      const idx = localUsers.findIndex(u => u.id === userId);
-      if (idx !== -1) {
-        localUsers[idx].status = 'rejected';
-        localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
-      }
-      return;
-    }
-
     if (!authSb) return;
     const { error } = await authSb.from('user_profiles')
       .update({ status: 'rejected', updated_at: new Date().toISOString() })
@@ -317,31 +308,12 @@ window.WMSAuth = {
 
   async deleteAuthUser(userId) {
     if (this.profile?.role !== 'Administrator') throw new Error('Admin only');
-
-    if (String(userId).startsWith('local-')) {
-      const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-      const filtered = localUsers.filter(u => u.id !== userId);
-      localStorage.setItem('wms_local_users', JSON.stringify(filtered));
-      return;
-    }
-
     if (!authSb) return;
     await authSb.from('user_profiles').delete().eq('id', userId);
   },
 
   async changeUserRole(userId, newRole) {
     if (this.profile?.role !== 'Administrator') throw new Error('Admin only');
-
-    if (String(userId).startsWith('local-')) {
-      const localUsers = JSON.parse(localStorage.getItem('wms_local_users') || '[]');
-      const idx = localUsers.findIndex(u => u.id === userId);
-      if (idx !== -1) {
-        localUsers[idx].role = newRole;
-        localStorage.setItem('wms_local_users', JSON.stringify(localUsers));
-      }
-      return;
-    }
-
     if (!authSb) return;
     const { error } = await authSb.from('user_profiles')
       .update({ role: newRole, updated_at: new Date().toISOString() })

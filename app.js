@@ -566,7 +566,7 @@ async function renderStockInHistoryTable() {
     return;
   }
 
-  tbody.innerHTML = inTx.slice(0, 20).map(tx => {
+  tbody.innerHTML = inTx.slice(0, 100).map(tx => {
     const locInfo = tx.location && tx.location !== 'N/A'
       ? ` <span style="font-size:11px;color:var(--text-muted);font-weight:500;">&nbsp;@ ${tx.location}</span>` : '';
     const priceInfo = tx.price > 0
@@ -669,7 +669,7 @@ async function renderStockOutHistoryTable() {
     return;
   }
 
-  tbody.innerHTML = outTx.slice(0, 20).map(tx => {
+  tbody.innerHTML = outTx.slice(0, 100).map(tx => {
     const locInfo = tx.location && tx.location !== 'N/A'
       ? ` <span style="font-size:11px;color:var(--text-muted);font-weight:500;">&nbsp;@ ${tx.location}</span>` : '';
     const priceInfo = tx.price > 0
@@ -2616,6 +2616,13 @@ window.WMSActivityLog = WMSActivityLog;
 
 // --- DOMCONTENTLOADED ENTRY POINT ---
 document.addEventListener('DOMContentLoaded', async () => {
+  // ── Clean up corrupt localStorage data from old offline mode ──
+  // These keys are no longer used in online-only mode and can contain
+  // malformed user rows that crash the admin UI
+  ['wms_local_users', 'wms_local_products', 'wms_local_transactions',
+   'wms_local_settings', 'wms_bypass_session', 'wms_bypass_profile',
+   'wms_bypass_profile_saved'].forEach(key => localStorage.removeItem(key));
+
   // ── Auth guard: must be first ──────────────────────────────────
   if (window.WMSAuth) {
     const profile = await WMSAuth.init();

@@ -703,7 +703,7 @@
             user_id: data.user.id,
             read: false,
             timestamp: new Date().toISOString()
-          }).catch(() => {});
+          }).then(() => {}).catch(() => {});
 
           document.getElementById('form-signup').style.display = 'none';
           document.getElementById('pending-notice').style.display = 'block';
