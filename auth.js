@@ -205,16 +205,41 @@ window.WMSAuth = {
           department: department || ''
         });
       }
-      return;
+      return this.profile;
     }
 
-    const { error } = await authSb.from('user_profiles')
-      .update({ full_name, phone, department, updated_at: new Date().toISOString() })
-      .eq('id', this.session.user.id);
+    if (!authSb) {
+      throw new Error('Supabase auth client not available. Profile changes require an online connection.');
+    }
+
+    const userId = this.session?.user?.id;
+    if (!userId) {
+      throw new Error('Unable to resolve current user session. Please sign in again.');
+    }
+
+    const payload = {
+      id: userId,
+      full_name,
+      phone,
+      department,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await authSb.from('user_profiles')
+      .upsert(payload, { onConflict: 'id' })
+      .select()
+      .single();
+
     if (error) throw error;
-    this.profile.full_name = full_name;
-    this.profile.phone = phone;
-    this.profile.department = department;
+
+    this.profile = {
+      ...this.profile,
+      ...data,
+      full_name,
+      phone,
+      department
+    };
+
     this._renderHeaderUser();
     if (window.WMSDatabase) {
       WMSDatabase.setCurrentUser({
@@ -222,11 +247,12 @@ window.WMSAuth = {
         name: full_name,
         role: this.profile.role,
         email: this.profile.email,
-        id: this.session.user.id,
+        id: userId,
         phone: phone || '',
         department: department || ''
       });
     }
+    return this.profile;
   },
 
   async updatePassword(newPassword) {
