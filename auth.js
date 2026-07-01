@@ -62,8 +62,14 @@ window.WMSAuth = {
       return;
     }
 
+    const normalizedProfile = {
+      ...profile,
+      full_name: profile.full_name || profile.name || session.user.user_metadata?.full_name || session.user.email || 'Unknown',
+      email: profile.email || session.user.email || ''
+    };
+
     this.session = session;
-    this.profile = profile;
+    this.profile = normalizedProfile;
 
     // Patch WMSDatabase.getCurrentUser() so existing code picks up the real user
     if (window.WMSDatabase) {
@@ -219,7 +225,9 @@ window.WMSAuth = {
 
     const payload = {
       id: userId,
+      user_id: userId,
       full_name,
+      name: full_name,
       phone,
       department,
       updated_at: new Date().toISOString()
@@ -232,13 +240,23 @@ window.WMSAuth = {
 
     if (error) throw error;
 
-    this.profile = {
+    const mergedProfile = {
       ...this.profile,
       ...data,
       full_name,
+      name: full_name,
       phone,
       department
     };
+
+    this.profile = mergedProfile;
+
+    if (authSb && typeof authSb.auth.updateUser === 'function') {
+      const { error: metadataError } = await authSb.auth.updateUser({ data: { full_name } });
+      if (metadataError) {
+        console.warn('[WMS] profile metadata update failed:', metadataError.message || metadataError);
+      }
+    }
 
     this._renderHeaderUser();
     if (window.WMSDatabase) {
