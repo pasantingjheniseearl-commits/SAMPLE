@@ -158,7 +158,7 @@
       background: var(--input-bg);
       border: 1px solid var(--border-color);
       color: var(--text-primary);
-      padding: 12px 14px 12px 40px;
+      padding: 12px 45px 12px 40px;
       border-radius: 10px;
       font-size: 14px;
       font-family: 'Inter', sans-serif;
@@ -171,7 +171,7 @@
     }
     .input-wrap .toggle-pw {
       position: absolute;
-      right: 12px;
+      right: 8px;
       top: 50%;
       transform: translateY(-50%);
       background: none;
@@ -179,10 +179,21 @@
       color: var(--text-muted);
       cursor: pointer;
       font-size: 14px;
-      padding: 4px;
+      padding: 8px 10px;
       pointer-events: auto;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s;
     }
-    .input-wrap .toggle-pw:hover { color: var(--text-secondary); }
+    .input-wrap .toggle-pw:hover { 
+      color: var(--accent); 
+    }
+    .input-wrap .toggle-pw:focus {
+      outline: none;
+      color: var(--accent);
+    }
     .btn-auth {
       width: 100%;
       padding: 13px;
