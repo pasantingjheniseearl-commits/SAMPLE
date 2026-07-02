@@ -1166,13 +1166,17 @@ tr.row-low-stock td {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   justify-content: center;
   align-items: center;
   z-index: 200;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s ease;
+  /* Allow vertical scroll when modal is taller than viewport */
+  overflow-y: auto;
+  padding: 24px 16px;
 }
 
 .modal-overlay.active {
@@ -1184,43 +1188,81 @@ tr.row-low-stock td {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
-  padding: 30px;
-  width: 500px;
-  max-width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
+  padding: 32px;
+  /* Default width — overridden per-modal below */
+  width: 560px;
+  max-width: 96vw;
+  /* No max-height clipping — let the overlay scroll instead */
+  max-height: none;
+  overflow-y: visible;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
-  transform: scale(0.95);
-  transition: transform 0.3s ease;
+  transform: scale(0.97);
+  transition: transform 0.25s ease;
+  /* Stays centred even when content is taller than viewport */
+  margin: auto;
 }
 
 .modal-overlay.active .modal-content {
   transform: scale(1);
 }
 
+/* Add Product modal — standard 2-col grid */
+#addProductModal .modal-content {
+  width: 640px;
+}
+
+/* Edit Product modal — wider to fit location rows + auto-total comfortably */
+#editProductModal .modal-content {
+  width: 700px;
+}
+
+/* Add Operator modal — compact, 2-col grid */
+#addUserModal .modal-content {
+  width: 560px;
+}
+
+/* Profile modal */
+#profileModal .modal-content {
+  width: 600px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h3 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
 }
 
 .modal-close {
-  background: transparent;
-  border: none;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 18px;
   cursor: pointer;
-  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .modal-close:hover {
-  color: #fff;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--danger-color);
 }
 
 /* RESPONSIVE LAYOUTS */
@@ -1888,6 +1930,8 @@ body.light-theme .topbar {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.7),
               0 0 0 1px rgba(255, 255, 255, 0.05);
+  /* max-height and overflow intentionally not set here —
+     the overlay scrolls so nothing inside is ever clipped */
 }
 
 /* BONUS: Barcode cards — accent border on hover instead of color shift */
@@ -1907,4 +1951,116 @@ body.light-theme .topbar {
 }
 .action-btn.delete:hover {
   box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25);
+}
+
+/* ============================================================
+   MODAL FORM SIZING — ensures all fields are fully visible,
+   nothing is clipped. The overlay scrolls instead of the modal.
+   ============================================================ */
+
+/* Forms inside modals use a 2-column grid.
+   Each column is equal width and fields wrap cleanly. */
+.modal-content .wms-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 24px;
+  align-items: start;
+}
+
+/* Full-width form groups span both columns */
+.modal-content .wms-form .form-group-full {
+  grid-column: 1 / -1;
+}
+
+/* Form inputs inside modals — ensure adequate height */
+.modal-content .form-group input,
+.modal-content .form-group select,
+.modal-content .form-group textarea {
+  min-height: 44px;
+  font-size: 14px;
+  padding: 11px 14px;
+}
+
+/* Readonly / disabled fields — clearly distinct but still readable */
+.modal-content .form-group input[readonly],
+.modal-content .form-group input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--bg-primary);
+}
+
+/* Location rows inside Edit Product modal */
+.edit-location-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.edit-location-row select,
+.edit-location-row input[type="number"] {
+  min-height: 42px;
+  font-size: 13.5px;
+  padding: 10px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  flex-grow: 1;
+}
+
+.edit-location-row select:focus,
+.edit-location-row input[type="number"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+
+.edit-location-row input[type="number"] {
+  flex-grow: 0;
+  width: 110px;
+  flex-shrink: 0;
+}
+
+/* "Add Location" button inside Edit modal */
+#edit-add-location-btn {
+  padding: 8px 14px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* Location section divider */
+#editProductModal .form-group-full[style*="border-top"] {
+  padding-top: 18px !important;
+  margin-top: 4px !important;
+}
+
+/* Form action buttons row */
+.modal-content .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+/* Collapse to single column on narrow screens */
+@media (max-width: 600px) {
+  .modal-content .wms-form {
+    grid-template-columns: 1fr;
+  }
+  .modal-content .wms-form .form-group-full {
+    grid-column: 1;
+  }
+  #addProductModal .modal-content,
+  #editProductModal .modal-content,
+  #addUserModal .modal-content {
+    width: 100%;
+    padding: 20px 16px;
+  }
+  .edit-location-row input[type="number"] {
+    width: 80px;
+  }
 }
