@@ -2700,51 +2700,85 @@ const WMSActivityLog = {
     if (!timeline) return;
 
     if (this.activeLogs.length === 0) {
-      timeline.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:25px;">No activity logs recorded.</div>';
+      timeline.innerHTML = `
+        <div class="tl-empty">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>No activity logs recorded yet.</span>
+        </div>`;
       return;
     }
 
-    timeline.innerHTML = this.activeLogs.map(item => {
-      let icon = 'fa-info';
-      let themeClass = 'info';
-      
+    timeline.innerHTML = this.activeLogs.map((item, idx) => {
+      // Icon + theme class per event type
+      let icon       = 'fa-circle-info';
+      let themeClass = 'tl-info';
+
       if (item.type === 'transaction') {
         if (item.event === 'Stock In') {
-          icon = 'fa-arrow-down-long';
-          themeClass = 'success';
+          icon       = 'fa-arrow-down-long';
+          themeClass = 'tl-success';
         } else if (item.event === 'Stock Out') {
-          icon = 'fa-arrow-up-long';
-          themeClass = 'danger';
+          icon       = 'fa-arrow-up-long';
+          themeClass = 'tl-danger';
         } else {
-          icon = 'fa-arrows-rotate';
-          themeClass = 'warning';
+          icon       = 'fa-arrows-rotate';
+          themeClass = 'tl-warning';
         }
       } else if (item.type === 'auth') {
         if (item.event === 'login') {
-          icon = 'fa-right-to-bracket';
-          themeClass = 'accent';
+          icon       = 'fa-right-to-bracket';
+          themeClass = 'tl-accent';
         } else {
-          icon = 'fa-right-from-bracket';
-          themeClass = 'muted';
+          icon       = 'fa-right-from-bracket';
+          themeClass = 'tl-muted';
         }
       }
 
-      const formattedTime = new Date(item.timestamp).toLocaleString();
+      // Human-readable relative time + full date tooltip
+      const dateObj  = new Date(item.timestamp);
+      const fullDate = dateObj.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      const relTime  = formatTimeDiff(dateObj);
+
+      // Type label for the footer tag
+      const typeLabel = item.type === 'transaction'
+        ? (item.event === 'Stock In'  ? 'Stock In'
+         : item.event === 'Stock Out' ? 'Stock Out'
+         : 'Adjustment')
+        : (item.event === 'login' ? 'Sign In' : 'Sign Out');
+
+      const isLast = idx === this.activeLogs.length - 1;
 
       return `
-        <div class="timeline-item ${themeClass}" style="display: flex; gap: 15px; margin-bottom: 20px; position: relative;">
-          <div class="timeline-badge ${themeClass}" style="width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
-            <i class="fa-solid ${icon}"></i>
-          </div>
-          <div class="timeline-card" style="flex-grow: 1; background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 14px 18px; border-radius: var(--border-radius-md); box-shadow: var(--card-shadow);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 8px;">
-              <h4 style="font-size: 14px; font-weight: 700; color: var(--text-primary);">${item.title}</h4>
-              <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">${formattedTime}</span>
+        <div class="tl-item ${themeClass}${isLast ? ' tl-last' : ''}">
+          <!-- Connector line + badge -->
+          <div class="tl-left">
+            <div class="tl-badge ${themeClass}">
+              <i class="fa-solid ${icon}"></i>
             </div>
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">${item.desc}</p>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span class="badge-operator" style="background: var(--border-color); color: var(--text-primary); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;"><i class="fa-solid fa-user" style="margin-right:4px; font-size:9px;"></i>${item.operator}</span>
-              <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${item.type}</span>
+            ${!isLast ? '<div class="tl-line"></div>' : ''}
+          </div>
+
+          <!-- Card -->
+          <div class="tl-card">
+            <div class="tl-card-header">
+              <div class="tl-title-row">
+                <span class="tl-type-chip ${themeClass}">${typeLabel}</span>
+                <h4 class="tl-title">${item.title}</h4>
+              </div>
+              <time class="tl-time" title="${fullDate}">${relTime}</time>
+            </div>
+
+            <p class="tl-desc">${item.desc}</p>
+
+            <div class="tl-card-footer">
+              <span class="tl-operator">
+                <i class="fa-solid fa-user-circle"></i>
+                ${item.operator}
+              </span>
+              <time class="tl-full-date">${fullDate}</time>
             </div>
           </div>
         </div>

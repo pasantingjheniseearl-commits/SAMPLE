@@ -2064,3 +2064,296 @@ body.light-theme .topbar {
     width: 80px;
   }
 }
+
+
+/* ============================================================
+   ACTIVITY LOG — Timeline redesign
+   Clean vertical timeline with connector line, color-coded
+   event badges, type chips, and full date footer.
+   ============================================================ */
+
+/* Outer scroll container */
+.activity-timeline-container {
+  padding: 8px 4px 8px 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-primary);
+}
+
+/* Inner timeline list */
+.activity-timeline {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Empty / loading state ── */
+.tl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.tl-empty i {
+  font-size: 32px;
+  opacity: 0.35;
+}
+
+/* ── Single timeline row ── */
+.tl-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+}
+
+/* ── Left column: badge + connector ── */
+.tl-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 40px;
+}
+
+/* Circular event badge */
+.tl-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.tl-item:hover .tl-badge {
+  transform: scale(1.08);
+}
+
+/* Connector line between badges */
+.tl-line {
+  width: 2px;
+  flex-grow: 1;
+  min-height: 16px;
+  margin: 4px 0;
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+/* ── Badge color themes ── */
+.tl-badge.tl-success {
+  background: var(--success-bg);
+  color: var(--success-color);
+  border-color: rgba(52, 211, 153, 0.25);
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.2);
+}
+.tl-badge.tl-danger {
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  border-color: rgba(248, 113, 113, 0.25);
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.2);
+}
+.tl-badge.tl-warning {
+  background: var(--warning-bg);
+  color: var(--warning-color);
+  border-color: rgba(251, 191, 36, 0.25);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.15);
+}
+.tl-badge.tl-accent {
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.25);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
+}
+.tl-badge.tl-muted {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+.tl-badge.tl-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* ── Right column: card ── */
+.tl-card {
+  flex-grow: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.tl-item:hover .tl-card {
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+/* Last item — no bottom margin */
+.tl-item.tl-last .tl-card {
+  margin-bottom: 0;
+}
+
+/* Card header: type chip + title on left, relative time on right */
+.tl-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.tl-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Event type chip (Stock In / Stock Out / Sign In etc.) */
+.tl-type-chip {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+.tl-type-chip.tl-success {
+  background: var(--success-bg);
+  color: var(--success-color);
+  border-color: rgba(52, 211, 153, 0.2);
+}
+.tl-type-chip.tl-danger {
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+.tl-type-chip.tl-warning {
+  background: var(--warning-bg);
+  color: var(--warning-color);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+.tl-type-chip.tl-accent {
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.2);
+}
+.tl-type-chip.tl-muted {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+.tl-type-chip.tl-info {
+  background: rgba(59,130,246,0.1);
+  color: #60a5fa;
+  border-color: rgba(59,130,246,0.15);
+}
+
+/* Event title */
+.tl-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin: 0;
+  word-break: break-word;
+}
+
+/* Relative timestamp (top right) */
+.tl-time {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Description row (qty, location, ref, notes) */
+.tl-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0 0 10px 0;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border-left: 3px solid var(--border-hover);
+  word-break: break-word;
+}
+
+/* Card footer: operator on left, full ISO date on right */
+.tl-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 2px;
+}
+
+.tl-operator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-color);
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+}
+.tl-operator i {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.tl-full-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.2px;
+}
+
+/* ── Pulse animation for the live dot ── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Light theme overrides */
+body.light-theme .tl-card {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+body.light-theme .tl-desc {
+  background: var(--bg-primary);
+  border-left-color: var(--border-hover);
+}
+body.light-theme .tl-operator {
+  background: rgba(0,0,0,0.03);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+body.light-theme .tl-badge.tl-success {
+  box-shadow: 0 0 10px rgba(21,128,61,0.15);
+}
+body.light-theme .tl-badge.tl-danger {
+  box-shadow: 0 0 10px rgba(185,28,28,0.15);
+}
