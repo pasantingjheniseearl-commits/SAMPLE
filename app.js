@@ -634,7 +634,7 @@ async function renderStockInHistoryTable() {
     const priceInfo = tx.price > 0
       ? `<span style="color:var(--text-muted);font-size:11px;"> &nbsp;·&nbsp; ₱${Number(tx.price).toLocaleString(undefined,{minimumFractionDigits:2})}/unit</span>` : '';
     return `
-      <tr>
+      <tr class="clickable-transaction-row" style="cursor:pointer;" data-tx-timestamp="${escapeHtml(tx.timestamp)}" data-tx-type="${escapeHtml(tx.type)}" data-tx-sku="${escapeHtml(tx.sku)}" data-tx-product="${escapeHtml(tx.productName)}" data-tx-qty="${escapeHtml(tx.quantity)}" data-tx-location="${escapeHtml(tx.location)}" data-tx-doc-ref="${escapeHtml(tx.docRef || 'N/A')}" data-tx-operator="${escapeHtml(tx.operator || '')}" data-tx-price="${escapeHtml(tx.price || 0)}" data-tx-notes="${escapeHtml(tx.notes || '')}">
         <td style="font-size:12px;color:var(--text-muted);">${new Date(tx.timestamp).toLocaleString()}</td>
         <td style="font-weight:700;font-family:monospace;">${escapeHtml(tx.sku)}</td>
         <td>${escapeHtml(tx.productName)}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${escapeHtml(tx.category)})</span>` : ''}</td>
@@ -644,6 +644,25 @@ async function renderStockInHistoryTable() {
       </tr>
     `;
   }).join('');
+
+  // Attach click listeners to all transaction rows
+  document.querySelectorAll('#stock-in-history-tbody .clickable-transaction-row').forEach(row => {
+    row.addEventListener('click', function() {
+      const tx = {
+        timestamp: this.dataset.txTimestamp,
+        type: this.dataset.txType,
+        sku: this.dataset.txSku,
+        productName: this.dataset.txProduct,
+        quantity: this.dataset.txQty,
+        location: this.dataset.txLocation,
+        docRef: this.dataset.txDocRef,
+        operator: this.dataset.txOperator,
+        price: this.dataset.txPrice,
+        notes: this.dataset.txNotes
+      };
+      openTransactionDetailModal(tx);
+    });
+  });
 }
 
 // Stock Out Dispatch forms
@@ -738,15 +757,34 @@ async function renderStockOutHistoryTable() {
     const priceInfo = tx.price > 0
       ? `<span style="color:var(--text-muted);font-size:11px;"> &nbsp;·&nbsp; ₱${Number(tx.price).toLocaleString(undefined,{minimumFractionDigits:2})}/unit</span>` : '';
     return `
-      <tr>
+      <tr class="clickable-transaction-row" style="cursor:pointer;" data-tx-timestamp="${escapeHtml(tx.timestamp)}" data-tx-type="${escapeHtml(tx.type)}" data-tx-sku="${escapeHtml(tx.sku)}" data-tx-product="${escapeHtml(tx.productName)}" data-tx-qty="${escapeHtml(tx.quantity)}" data-tx-location="${escapeHtml(tx.location)}" data-tx-doc-ref="${escapeHtml(tx.docRef || 'N/A')}" data-tx-operator="${escapeHtml(tx.operator || '')}" data-tx-price="${escapeHtml(tx.price || 0)}" data-tx-notes="${escapeHtml(tx.notes || '')}">
         <td style="font-size:12px;color:var(--text-muted);">${new Date(tx.timestamp).toLocaleString()}</td>
         <td style="font-weight:700;font-family:monospace;">${escapeHtml(tx.sku)}</td>
         <td>${escapeHtml(tx.productName)}${tx.category ? ` <span style="font-size:11px;color:var(--text-muted);">(${escapeHtml(tx.category)})</span>` : ''}</td>
-        <td style="color:var(--danger-color);font-weight:700;">-${escapeHtml(tx.quantity)}${locInfo}${priceInfo}</td>
+        <td style="color:var(--warning-color);font-weight:700;">-${escapeHtml(tx.quantity)}${locInfo}${priceInfo}</td>
         <td style="font-size:12px;color:var(--text-muted);">${escapeHtml(tx.operator || '')}</td>
       </tr>
     `;
   }).join('');
+
+  // Attach click listeners to all transaction rows
+  document.querySelectorAll('#stock-out-history-tbody .clickable-transaction-row').forEach(row => {
+    row.addEventListener('click', function() {
+      const tx = {
+        timestamp: this.dataset.txTimestamp,
+        type: this.dataset.txType,
+        sku: this.dataset.txSku,
+        productName: this.dataset.txProduct,
+        quantity: this.dataset.txQty,
+        location: this.dataset.txLocation,
+        docRef: this.dataset.txDocRef,
+        operator: this.dataset.txOperator,
+        price: this.dataset.txPrice,
+        notes: this.dataset.txNotes
+      };
+      openTransactionDetailModal(tx);
+    });
+  });
 }
 
 // Barcodes Generator section — cards only appear when a search query is typed
@@ -3023,6 +3061,77 @@ const WMSActivityLog = {
 };
 window.WMSActivityLog = WMSActivityLog;
 
+
+// ============================================================
+//   TRANSACTION DETAIL MODAL
+// ============================================================
+function openTransactionDetailModal(tx) {
+  const modal = document.getElementById('transaction-detail-modal');
+  if (!modal) return;
+
+  // Format timestamp nicely
+  const formattedDate = new Date(tx.timestamp).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+
+  // Populate modal fields with escaped content
+  const timestampEl = document.getElementById('txn-detail-timestamp');
+  if (timestampEl) timestampEl.textContent = formattedDate;
+
+  const typeEl = document.getElementById('txn-detail-txn-type');
+  if (typeEl) typeEl.textContent = escapeHtml(tx.type);
+
+  const iconEl = document.getElementById('txn-detail-icon');
+  if (iconEl) {
+    iconEl.className = 'fa-solid';
+    if (tx.type === 'Stock In') {
+      iconEl.classList.add('fa-arrow-down-long');
+      iconEl.style.color = 'var(--success-color)';
+    } else if (tx.type === 'Stock Out') {
+      iconEl.classList.add('fa-arrow-up-long');
+      iconEl.style.color = 'var(--warning-color)';
+    }
+  }
+
+  const skuEl = document.getElementById('txn-detail-sku');
+  if (skuEl) skuEl.textContent = escapeHtml(tx.sku).toUpperCase();
+
+  const productEl = document.getElementById('txn-detail-product-name');
+  if (productEl) productEl.textContent = escapeHtml(tx.productName);
+
+  const qtyEl = document.getElementById('txn-detail-quantity');
+  if (qtyEl) {
+    const qtyPrefix = tx.type === 'Stock In' ? '+' : '-';
+    qtyEl.textContent = qtyPrefix + escapeHtml(tx.quantity);
+    qtyEl.style.color = tx.type === 'Stock In' ? 'var(--success-color)' : 'var(--warning-color)';
+  }
+
+  const locationEl = document.getElementById('txn-detail-location');
+  if (locationEl) locationEl.textContent = escapeHtml(tx.location) || 'N/A';
+
+  const docRefEl = document.getElementById('txn-detail-doc-ref');
+  if (docRefEl) docRefEl.textContent = escapeHtml(tx.docRef) || 'N/A';
+
+  const priceEl = document.getElementById('txn-detail-unit-price');
+  if (priceEl) {
+    const price = parseFloat(tx.price) || 0;
+    priceEl.textContent = price > 0 ? '₱' + price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'N/A';
+  }
+
+  const operatorEl = document.getElementById('txn-detail-operator');
+  if (operatorEl) operatorEl.textContent = escapeHtml(tx.operator) || 'N/A';
+
+  const notesEl = document.getElementById('txn-detail-notes');
+  if (notesEl) notesEl.textContent = escapeHtml(tx.notes) || 'N/A';
+
+  // Show modal
+  modal.classList.add('active');
+}
 
 // ============================================================
 //   DELETE PRODUCT CONFIRM MODAL

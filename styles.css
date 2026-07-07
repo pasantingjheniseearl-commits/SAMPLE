@@ -2505,3 +2505,292 @@ body.light-theme .status-badge-unknown   { background: #f1f5f9; color: #64748b; 
   font-size: 13.5px;
   letter-spacing: 0.3px;
 }
+
+
+/* ============================================================
+   TRANSACTION DETAIL MODAL
+   Modal for displaying detailed transaction information with
+   proper dark/light theme support, consistent styling, and
+   responsive design.
+   ============================================================ */
+
+/* Clickable transaction rows styling */
+.clickable-transaction-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.clickable-transaction-row:hover {
+  background-color: var(--bg-hover);
+}
+
+body.light-theme .clickable-transaction-row:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+/* Transaction Detail Modal — inherits from .modal-overlay and .modal-content */
+#transaction-detail-modal {
+  /* Uses default modal-overlay styles for positioning and backdrop */
+}
+
+#transaction-detail-modal .modal-content {
+  width: 600px;
+  /* Modal content inherits from .modal-content base styles */
+}
+
+/* Transaction detail container with grid layout */
+#transaction-detail-modal .txn-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+/* Full-width rows for timestamp and notes */
+#transaction-detail-modal .txn-detail-full-width {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+#transaction-detail-modal .txn-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Transaction detail field labels */
+#transaction-detail-modal .txn-detail-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Transaction detail values — base styling */
+#transaction-detail-modal .txn-detail-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Timestamp — prominently displayed, monospace */
+#transaction-detail-modal .txn-detail-timestamp {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.3px;
+}
+
+/* Transaction type — styled with icon alignment */
+#transaction-detail-modal .txn-detail-txn-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* SKU — accent color, monospace, clearly visible */
+#transaction-detail-modal .txn-detail-sku {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent);
+  letter-spacing: 1px;
+  word-break: break-word;
+}
+
+/* Product name — standard text */
+#transaction-detail-modal .txn-detail-product-name {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Quantity — emphasized with weight */
+#transaction-detail-modal .txn-detail-quantity {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Location/Rack — standard text */
+#transaction-detail-modal .txn-detail-location {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Document Reference — monospace for readability */
+#transaction-detail-modal .txn-detail-doc-ref {
+  font-size: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+/* Unit Price — emphasized */
+#transaction-detail-modal .txn-detail-unit-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Operator Name — standard text */
+#transaction-detail-modal .txn-detail-operator {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Notes/Comments — scrollable area with background */
+#transaction-detail-modal .txn-detail-notes {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  background: var(--bg-primary);
+  padding: 12px;
+  border-radius: var(--border-radius-sm);
+  max-height: 120px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  word-break: break-word;
+}
+
+/* Modal header icon styling */
+#transaction-detail-modal .modal-header i {
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+/* Action buttons styling — inherited from .form-actions and .btn */
+#transaction-detail-modal .form-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Close button — standard modal close button styling */
+#transaction-detail-modal .modal-close {
+  /* Inherits from .modal-close base styles */
+}
+
+/* ────────────────────────────────────────────────────────────
+   RESPONSIVE DESIGN — ensure modal works on mobile screens
+   ──────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  #transaction-detail-modal .modal-content {
+    width: 100%;
+    padding: 20px 16px;
+  }
+  
+  #transaction-detail-modal .txn-detail-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  #transaction-detail-modal .txn-detail-full-width {
+    grid-column: 1;
+  }
+  
+  #transaction-detail-modal .txn-detail-label {
+    font-size: 11px;
+  }
+  
+  #transaction-detail-modal .txn-detail-value {
+    font-size: 13px;
+  }
+  
+  #transaction-detail-modal .txn-detail-timestamp {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  #transaction-detail-modal .modal-content {
+    padding: 16px 12px;
+  }
+  
+  #transaction-detail-modal .txn-detail-grid {
+    gap: 12px;
+  }
+  
+  #transaction-detail-modal .txn-detail-value {
+    font-size: 12px;
+  }
+  
+  #transaction-detail-modal .modal-header h3 {
+    font-size: 16px;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   LIGHT THEME OVERRIDES
+   ──────────────────────────────────────────────────────────── */
+body.light-theme #transaction-detail-modal .modal-content {
+  background: var(--bg-secondary);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-label {
+  color: var(--text-muted);
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-value {
+  color: var(--text-secondary);
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-timestamp {
+  color: var(--text-primary);
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-sku {
+  color: #2563eb;
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-quantity {
+  color: var(--text-primary);
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-notes {
+  background: #f8fafc;
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+body.light-theme #transaction-detail-modal .modal-header h3 {
+  color: var(--text-primary);
+}
+
+body.light-theme #transaction-detail-modal .modal-header {
+  border-bottom-color: var(--border-color);
+}
+
+body.light-theme #transaction-detail-modal .modal-close {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+body.light-theme #transaction-detail-modal .modal-close:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+body.light-theme #transaction-detail-modal .form-actions {
+  border-top-color: var(--border-color);
+}
+
+body.light-theme #transaction-detail-modal .txn-detail-full-width {
+  border-bottom-color: var(--border-color);
+}
+
+body.light-theme #transaction-detail-modal .modal-header i {
+  color: #2563eb;
+}
