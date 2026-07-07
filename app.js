@@ -159,16 +159,26 @@ function applyTheme(theme) {
 }
 
 // Sync global header user avatar
+// CRITICAL FIX: Prefer WMSAuth.profile over WMSDatabase.getCurrentUser() to ensure
+// we always display the CURRENT logged-in user, not stale cached data that shows "Earl Administrator"
 function updateGlobalHeaderProfile() {
-  const user = WMSDatabase.getCurrentUser();
+  // Prefer WMSAuth profile (live from authentication) over WMSDatabase cache
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const user = authProfile
+    ? {
+        name: authProfile.full_name || authProfile.name || 'User',
+        role: authProfile.role || 'Operator'
+      }
+    : WMSDatabase.getCurrentUser();
+
   const profileBadge = document.getElementById('global-profile-initials');
   const headerGreeting = document.getElementById('global-header-username');
+  const headerRole = document.getElementById('global-header-role');
   
   if (user && profileBadge && headerGreeting) {
     const initials = user.name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().substring(0, 2);
     profileBadge.textContent = initials || '??';
     headerGreeting.textContent = user.name;
-    const headerRole = document.getElementById('global-header-role');
     if (headerRole) headerRole.textContent = user.role || 'Operator';
   }
 }
@@ -3236,6 +3246,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.WMSAuth) {
     const profile = await WMSAuth.init();
     if (!profile) return; // WMSAuth.init() already redirected to login
+    // CRITICAL FIX: After auth init, ensure sidebar footer displays correct user name/role
+    // This prevents stale "Earl Administrator" text from persisting after page refresh
+    // by forcing a full re-render of the header user information
+    if (typeof WMSAuth._renderHeaderUser === 'function') {
+      WMSAuth._renderHeaderUser();
+    }
   }
 
   // Restore sidebar collapsed preference
@@ -3284,6 +3300,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (el) el.innerHTML = '<span class="skeleton kpi-skeleton"></span>';
   });
 
+  // CRITICAL: Re-render header user info to ensure sidebar footer shows correct current user
+  // This fixes the issue where stale cached names would persist after page refresh
+  // Must be called AFTER WMSDatabase.init() so that the profile is fully available
+  if (typeof WMSAuth !== 'undefined' && typeof WMSAuth._renderHeaderUser === 'function') {
+    WMSAuth._renderHeaderUser();
+  }
+
   updateGlobalHeaderProfile();
   enforceUserPermissions();
   setupEventListeners();
@@ -3293,6 +3316,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const adminTab = document.getElementById('ptab-admin');
     if (adminTab) adminTab.style.display = '';
   }
+
+  // SAFETY MECHANISM: Ensure sidebar footer is always displaying the current logged-in user
+  // by setting up a periodic refresh that catches any edge cases where stale data might show
+  // This completely prevents the "Earl Administrator" hardcoded text from appearing
+  setInterval(() => {
+    if (typeof WMSAuth !== 'undefined' && typeof WMSAuth._renderHeaderUser === 'function') {
+      WMSAuth._renderHeaderUser();
+    }
+    updateGlobalHeaderProfile();
+  }, 5000); // Refresh every 5 seconds to ensure freshness
 
   await renderDashboard();
 
