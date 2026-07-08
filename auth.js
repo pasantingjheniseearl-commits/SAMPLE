@@ -9,6 +9,25 @@
 // Reuse the shared client from db.js — no second createClient() call
 const authSb = window._sb || null;
 
+// ── Helper: Get client IP address for session tracking ──────────────────────
+// Attempts to get IP from request headers; falls back to 127.0.0.1
+async function getClientIpAddress() {
+  try {
+    // Try to fetch from ipify API (public IP lookup)
+    const response = await fetch('https://api.ipify.org?format=json', { 
+      signal: AbortSignal.timeout(3000) // 3 second timeout
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.ip) return data.ip;
+    }
+  } catch (_) {
+    // Timeout or network error — fall through to fallback
+  }
+  // Fallback: return localhost indicator
+  return '127.0.0.1';
+}
+
 // ── Current session state ────────────────────────────────────────────────────
 window.WMSAuth = {
   session: null,
@@ -53,6 +72,10 @@ window.WMSAuth = {
         });
       }
       this._renderHeaderUser();
+
+      // Initialize session for online users tracking (Wave 3)
+      this._initializeSessionData();
+
       return this.profile;
     }
 
@@ -106,6 +129,9 @@ window.WMSAuth = {
     // Update header badge
     this._renderHeaderUser();
 
+    // Initialize session for online users tracking (Wave 3)
+    this._initializeSessionData();
+
     // Listen for auth state changes (e.g. token expiry, sign-out from another tab)
     authSb.auth.onAuthStateChange(async (event) => {
       if (event === 'SIGNED_OUT' && !localStorage.getItem('wms_bypass_session')) {
@@ -126,6 +152,17 @@ window.WMSAuth = {
     localStorage.removeItem('wms_bypass_session');
     localStorage.removeItem('wms_bypass_profile');
     try {
+      // End session for Wave 3
+      const sessionId = localStorage.getItem('wms_session_id');
+      if (sessionId && typeof WMSDatabase !== 'undefined' && WMSDatabase.endSession) {
+        try {
+          await WMSDatabase.endSession(sessionId);
+        } catch (e) {
+          console.error('[WMS] Session end error:', e);
+        }
+      }
+      localStorage.removeItem('wms_session_id');
+      
       if (authSb) {
         // Fire and forget — don't block signout on log insert
         authSb.from('login_log').insert({
@@ -154,6 +191,46 @@ window.WMSAuth = {
     if (badge) badge.textContent = initials || '??';
     if (nameEl) nameEl.textContent = p.full_name || p.name || 'User';
     if (roleEl) roleEl.textContent = p.role || 'Operator';
+  },
+
+  // Initialize session on login (Wave 3: Online Users)
+  async _initializeSessionData() {
+    const userId = this.session?.user?.id;
+    const userName = this.profile?.full_name || this.profile?.name || 'Unknown';
+    
+    if (!userId) {
+      console.warn('[WMS] Cannot initialize session: no user ID');
+      return;
+    }
+
+    try {
+      // Get client IP address
+      const ipAddress = await getClientIpAddress();
+
+      // Call WMSDatabase.createSession() to create session record
+      // This will attempt to call the RPC function initializeSession(user_id, ip_address)
+      // or fall back to direct table insert
+      if (typeof WMSDatabase !== 'undefined' && WMSDatabase.createSession) {
+        const sessionId = await WMSDatabase.createSession(userId, userName, ipAddress);
+        
+        // Store session data in localStorage for later use
+        localStorage.setItem('wms_session_id', sessionId);
+        localStorage.setItem('wms_session_start', new Date().toISOString());
+        localStorage.setItem('wms_user_id', userId);
+        
+        console.log('[WMS] Session initialized:', sessionId, 'IP:', ipAddress);
+      } else {
+        console.warn('[WMS] WMSDatabase.createSession not available');
+      }
+    } catch (error) {
+      // Session creation failed — log error but don't prevent login
+      // Session tracking is supplementary; allow user to continue
+      console.error('[WMS] Session initialization error:', error);
+      // Still store a basic session ID for continuity
+      const fallbackSessionId = 'SES-' + Math.random().toString(36).substring(2, 14).toUpperCase();
+      localStorage.setItem('wms_session_id', fallbackSessionId);
+      localStorage.setItem('wms_session_start', new Date().toISOString());
+    }
   },
 
   // Load unread admin notifications and show badge

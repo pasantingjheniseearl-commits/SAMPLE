@@ -64,6 +64,239 @@ async function getProductBySku(sku) {
   return products.find(p => p.sku === sku.toUpperCase().trim()) || null;
 }
 
+// --- WAVE 1-3: EXPIRY DATE VALIDATION ---
+function validateExpiryDate(dateStr) {
+  if (!dateStr) return { valid: true, message: '' }; // Optional field
+  const expiryDate = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiryDate.setHours(0, 0, 0, 0);
+  if (isNaN(expiryDate.getTime())) return { valid: false, message: 'Please enter a valid date' };
+  if (expiryDate < today) return { valid: false, message: 'Expiry date cannot be in the past' };
+  return { valid: true, message: '' };
+}
+
+// Calculate days until expiry
+function calculateDaysUntilExpiry(expiryDateStr) {
+  if (!expiryDateStr) return null;
+  const expiryDate = new Date(expiryDateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiryDate.setHours(0, 0, 0, 0);
+  return Math.floor((expiryDate - today) / (1000 * 60 * 60 * 24));
+}
+
+// Render expiry status badge for table
+function renderExpiryStatusCell(product) {
+  if (!product.expiry_date) {
+    return '<span class="badge badge-neutral">No Expiry</span>';
+  }
+  const daysRemaining = calculateDaysUntilExpiry(product.expiry_date);
+  if (daysRemaining < 0) {
+    return `<span class="badge badge-danger"><i class="fa-solid fa-exclamation-triangle"></i> Expired</span>`;
+  } else if (daysRemaining <= 7) {
+    return `<span class="badge badge-critical"><i class="fa-solid fa-fire"></i> ${daysRemaining}d (Critical)</span>`;
+  } else if (daysRemaining <= 30) {
+    return `<span class="badge badge-warning"><i class="fa-solid fa-clock"></i> ${daysRemaining}d</span>`;
+  } else {
+    return `<span class="badge badge-success"><i class="fa-solid fa-check"></i> ${daysRemaining}d</span>`;
+  }
+}
+
+// --- WAVE 2: PRICE VALIDATION & FORMATTING ---
+function validatePrice(priceString) {
+  // Empty field is invalid
+  if (!priceString || priceString.trim() === '') {
+    return { valid: false, formatted: '', message: 'Price is required' };
+  }
+
+  const trimmed = priceString.trim();
+  const num = parseFloat(trimmed);
+
+  // Check if it's a valid number
+  if (isNaN(num)) {
+    return { valid: false, formatted: '', message: 'Price must be a valid number' };
+  }
+
+  // Check if negative
+  if (num < 0) {
+    return { valid: false, formatted: '', message: 'Price must be positive' };
+  }
+
+  // Check if zero
+  if (num === 0) {
+    return { valid: false, formatted: '', message: 'Price must be greater than 0' };
+  }
+
+  // Check decimal places (max 2)
+  const decimalRegex = /^\d+(\.\d{0,2})?$/;
+  if (!decimalRegex.test(trimmed)) {
+    return { valid: false, formatted: '', message: 'Price must have maximum 2 decimal places' };
+  }
+
+  // Check range (0.01 to 9999.99)
+  if (num < 0.01 || num > 9999.99) {
+    return { valid: false, formatted: '', message: 'Price must be between $0.01 and $9999.99' };
+  }
+
+  // Valid: return formatted price with $ symbol
+  const formatted = formatCurrencyDisplay(num);
+  return { valid: true, formatted: formatted, message: '' };
+}
+
+function formatCurrencyDisplay(price) {
+  const num = parseFloat(price);
+  if (isNaN(num)) return '$0.00';
+  
+  return '$' + num.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+// Detect price changes
+async function detectPriceChange(sku, newPrice) {
+  const product = await getProductBySku(sku);
+  if (!product) return null;
+  const oldPrice = parseFloat(product.price) || 0;
+  const newPriceNum = parseFloat(newPrice) || 0;
+  if (oldPrice === newPriceNum) return null;
+  return { sku, oldPrice, newPrice: newPriceNum, isIncrease: newPriceNum > oldPrice };
+}
+
+// --- SESSION & ACTIVITY TRACKING ---
+let currentSessionId = null;
+const ACTIVITY_UPDATE_INTERVAL = 30000; // 30 seconds
+let activityUpdateTimer = null;
+let nearExpiryCurrentPage = 1;
+let nearExpiryData = [];
+const NEAR_EXPIRY_PAGE_SIZE = 5;
+
+async function initializeSession() {
+  const user = WMSDatabase.getCurrentUser();
+  if (!user) return;
+  try {
+    // Session methods will be in db.js when online
+    if (WMSDatabase.createSession) {
+      const sessionId = await WMSDatabase.createSession(user.username, user.name);
+      currentSessionId = sessionId;
+      localStorage.setItem('wms_session_id', sessionId);
+      startActivityTracking();
+    }
+  } catch (error) {
+    console.error('[WMS] Session init error:', error);
+  }
+}
+
+function startActivityTracking() {
+  document.addEventListener('mousemove', debounce(() => updateUserActivity('page_interaction'), 5000));
+  document.addEventListener('keydown', debounce(() => updateUserActivity('page_interaction'), 5000));
+  document.addEventListener('click', debounce(() => updateUserActivity('page_interaction'), 5000));
+  activityUpdateTimer = setInterval(updateUserActivity, ACTIVITY_UPDATE_INTERVAL);
+}
+
+async function updateUserActivity(actionType = 'page_interaction') {
+  if (!currentSessionId) return;
+  try {
+    if (WMSDatabase.updateSessionActivity) {
+      await WMSDatabase.updateSessionActivity(currentSessionId, actionType);
+    }
+  } catch (error) {
+    console.error('[WMS] Activity update error:', error);
+  }
+}
+
+function debounce(func, delay) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), delay);
+  };
+}
+
+// Near-expiry widget functions
+async function loadNearExpiryProducts() {
+  try {
+    if (WMSDatabase.getNearExpiryProducts) {
+      nearExpiryData = await WMSDatabase.getNearExpiryProducts(30);
+      nearExpiryData.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+    } else {
+      // Fallback if method not available
+      const products = await getCachedProducts();
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      nearExpiryData = products.filter(p => {
+        if (!p.expiry_date) return false;
+        const expDate = new Date(p.expiry_date);
+        expDate.setHours(0, 0, 0, 0);
+        const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
+        return daysLeft <= 30 && daysLeft >= -1;
+      }).sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+    }
+    nearExpiryCurrentPage = 1;
+    renderNearExpiryPage();
+  } catch (error) {
+    console.error('[WMS] Near-expiry load error:', error);
+  }
+}
+
+function renderNearExpiryPage() {
+  const start = (nearExpiryCurrentPage - 1) * NEAR_EXPIRY_PAGE_SIZE;
+  const items = nearExpiryData.slice(start, start + NEAR_EXPIRY_PAGE_SIZE);
+  const container = document.getElementById('near-expiry-list');
+  
+  if (!container) return;
+  
+  if (items.length === 0) {
+    container.innerHTML = '<p class="text-muted" style="padding:12px;text-align:center;color:var(--text-muted);">No products expiring within 30 days.</p>';
+    const pageInfo = document.getElementById('near-expiry-page-info');
+    if (pageInfo) pageInfo.textContent = 'Page 1 of 1';
+    return;
+  }
+  
+  container.innerHTML = items.map(p => {
+    const daysLeft = calculateDaysUntilExpiry(p.expiry_date);
+    const urgency = daysLeft <= 7 ? 'critical' : 'warning';
+    const expDate = new Date(p.expiry_date).toLocaleDateString();
+    return `
+      <div class="near-expiry-item urgency-${urgency}" style="padding:12px;border-left:4px solid ${urgency === 'critical' ? '#ef4444' : '#f59e0b'};margin-bottom:8px;background:rgba(0,0,0,0.2);border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:14px;">${escapeHtml(p.name)}</div>
+          <small style="color:var(--text-muted);font-size:12px;">${escapeHtml(p.sku)} • Stock: ${escapeHtml(p.stock_on_hand)}</small>
+        </div>
+        <div style="text-align:right;">
+          <span class="badge" style="background:${urgency === 'critical' ? '#ef4444' : '#f59e0b'};color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600;">${daysLeft}d</span>
+          <small style="color:var(--text-muted);display:block;font-size:11px;margin-top:2px;">${expDate}</small>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  const totalPages = Math.ceil(nearExpiryData.length / NEAR_EXPIRY_PAGE_SIZE);
+  const pageInfo = document.getElementById('near-expiry-page-info');
+  if (pageInfo) pageInfo.textContent = `Page ${nearExpiryCurrentPage} of ${totalPages}`;
+  
+  const prevBtn = document.getElementById('near-expiry-prev');
+  const nextBtn = document.getElementById('near-expiry-next');
+  if (prevBtn) prevBtn.disabled = nearExpiryCurrentPage === 1;
+  if (nextBtn) nextBtn.disabled = nearExpiryCurrentPage >= totalPages;
+}
+
+function nearExpiryNextPage() {
+  const totalPages = Math.ceil(nearExpiryData.length / NEAR_EXPIRY_PAGE_SIZE);
+  if (nearExpiryCurrentPage < totalPages) {
+    nearExpiryCurrentPage++;
+    renderNearExpiryPage();
+  }
+}
+
+function nearExpiryPrevPage() {
+  if (nearExpiryCurrentPage > 1) {
+    nearExpiryCurrentPage--;
+    renderNearExpiryPage();
+  }
+}
+
 // Sound generator for barcode scanner simulator
 function playScanSound() {
   try {
@@ -367,6 +600,7 @@ function buildInventoryRow(p) {
     <td style="font-weight:700;color:${p.available_stock<=0?'var(--danger-color)':'var(--text-primary)'};">${escapeHtml(p.available_stock)}</td>
     <td style="color:var(--text-muted);font-family:monospace;">${escapeHtml(p.reorder_level)}</td>
     <td style="color:var(--text-muted);font-family:monospace;">₱${Number(p.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+    <td>${renderExpiryStatusCell(p)}</td>
     <td><span class="status ${statusClass}">${escapeHtml(p.status)}</span></td>
     <td style="font-size:12px;color:var(--text-muted);">${formattedDate}</td>
     <td><div class="actions">${actionsHtml}</div></td>
@@ -393,6 +627,7 @@ async function renderInventoryTable() {
   const filterCategory = document.getElementById('filter-category').value;
   const filterLocation = document.getElementById('filter-location').value;
   const filterStatus = document.getElementById('filter-status').value;
+  const filterExpiryStatus = document.getElementById('filter-expiry-status').value;
   const hideZeroStock = document.getElementById('hide-zero-stock').checked;
 
   // 1. Filter in-memory
@@ -407,14 +642,36 @@ async function renderInventoryTable() {
     if (filterStatus === 'in-stock'     && p.status !== 'In Stock')     return false;
     if (filterStatus === 'low-stock'    && p.status !== 'Low Stock')     return false;
     if (filterStatus === 'out-of-stock' && p.status !== 'Out of Stock')  return false;
+    // Expiry status filtering
+    if (filterExpiryStatus !== 'all') {
+      if (!p.expiry_date) {
+        if (filterExpiryStatus !== 'no-expiry') return false;
+      } else {
+        const daysLeft = calculateDaysUntilExpiry(p.expiry_date);
+        if (filterExpiryStatus === 'expired' && daysLeft >= 0) return false;
+        if (filterExpiryStatus === 'near-expiry' && (daysLeft > 30 || daysLeft < 0)) return false;
+        if (filterExpiryStatus === 'ok' && daysLeft <= 30) return false;
+      }
+    }
     if (hideZeroStock && p.stock_on_hand <= 0) return false;
     return true;
   });
 
-  // 2. Sort
+  // 2. Sort - handle expiry_status special sorting
   filtered.sort((a, b) => {
     let valA = a[sortColumn] ?? '';
     let valB = b[sortColumn] ?? '';
+    
+    if (sortColumn === 'expiry_status') {
+      const daysA = calculateDaysUntilExpiry(a.expiry_date);
+      const daysB = calculateDaysUntilExpiry(b.expiry_date);
+      const aVal = daysA === null ? 999999 : daysA;
+      const bVal = daysB === null ? 999999 : daysB;
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    }
+    
     if (typeof valA === 'string') { valA = valA.toLowerCase(); valB = (valB + '').toLowerCase(); }
     if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
     if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
@@ -592,7 +849,7 @@ async function initStockInForm() {
             <div style="display:flex;gap:16px;flex-wrap:wrap;">
               <span><strong>Product:</strong> ${escapeHtml(product.name)}</span>
               <span><strong>Category:</strong> ${escapeHtml(product.category)}</span>
-              <span><strong>Unit Price:</strong> <span style="color:var(--accent);font-weight:700;">₱${Number(product.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></span>
+              <span><strong>Unit Price:</strong> <span style="color:var(--accent);font-weight:700;">${formatCurrencyDisplay(product.price||0)}</span></span>
             </div>
             <div><strong>Total Stock:</strong> ${escapeHtml(product.stock_on_hand)} &nbsp;|&nbsp; <strong>Available:</strong> <span style="color:var(--accent);font-weight:700;">${escapeHtml(product.available_stock)}</span></div>
             <div><strong>Locations (${locCount}/5):</strong></div>
@@ -608,13 +865,66 @@ async function initStockInForm() {
           }
         }
 
-        // Auto-fill the price field if empty
-        const priceEl = document.getElementById('stock-in-price');
+        // Auto-fill the price field if empty and show current price
+        const priceEl = document.getElementById('stock-in-unit-cost');
+        const currentPriceDisplay = document.getElementById('current-price-display');
+        if (currentPriceDisplay) {
+          currentPriceDisplay.textContent = formatCurrencyDisplay(product.price||0);
+        }
         if (priceEl && !priceEl.value && product.price) {
           priceEl.value = product.price;
         }
       } else if (details) {
         details.innerHTML = `<div style="font-size:12px;color:var(--text-muted);"><i class="fa-solid fa-info-circle"></i> Type a valid SKU to view details...</div>`;
+      }
+    });
+  }
+
+  // Wire up real-time price validation
+  const priceEl = document.getElementById('stock-in-unit-cost');
+  if (priceEl && !priceEl.dataset.wired) {
+    priceEl.dataset.wired = '1';
+    
+    // Validate on blur (when user leaves the field)
+    priceEl.addEventListener('blur', () => {
+      const priceValue = priceEl.value.trim();
+      const errorEl = document.getElementById('price-error');
+      
+      // Clear error on blur if empty (optional field when blank)
+      if (!priceValue) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        return;
+      }
+      
+      const validation = validatePrice(priceValue);
+      if (!validation.valid) {
+        errorEl.textContent = validation.message;
+        errorEl.style.display = 'block';
+      } else {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+      }
+    });
+    
+    // Validate on change (real-time feedback as user types)
+    priceEl.addEventListener('change', () => {
+      const priceValue = priceEl.value.trim();
+      const errorEl = document.getElementById('price-error');
+      
+      if (!priceValue) {
+        errorEl.style.display = 'none';
+        return;
+      }
+      
+      const validation = validatePrice(priceValue);
+      if (!validation.valid) {
+        errorEl.textContent = validation.message;
+        errorEl.style.display = 'block';
+      } else {
+        // Auto-format valid prices
+        priceEl.value = validation.formatted.replace('$', '');
+        errorEl.style.display = 'none';
       }
     });
   }
@@ -1529,6 +1839,7 @@ async function onViewActivated(viewId) {
   switch (viewId) {
     case 'view-dashboard':
       await renderDashboard();
+      await loadNearExpiryProducts();
       break;
     case 'view-inventory':
       await populateFilterDropdowns();
@@ -2058,16 +2369,52 @@ function setupEventListeners() {
       e.preventDefault();
       const submitBtn = stockInForm.querySelector('button[type="submit"]');
       
-      const sku      = document.getElementById('stock-in-sku').value.trim().toUpperCase();
-      const qty      = parseInt(document.getElementById('stock-in-qty').value) || 0;
-      const location = document.getElementById('stock-in-location').value;
-      const price    = parseFloat(document.getElementById('stock-in-price').value) || 0;
-      const notes    = document.getElementById('stock-in-notes').value.trim() || '';
-      const docRef   = (document.getElementById('stock-in-doc-ref')?.value || '').trim() || 'N/A';
+      const sku       = document.getElementById('stock-in-sku').value.trim().toUpperCase();
+      const qty       = parseInt(document.getElementById('stock-in-qty').value) || 0;
+      const location  = document.getElementById('stock-in-location').value;
+      const priceInput = document.getElementById('stock-in-unit-cost').value.trim();
+      const expiryDate = document.getElementById('stock-in-expiry-date').value.trim();
+      const notes     = document.getElementById('stock-in-notes').value.trim() || '';
+      const docRef    = (document.getElementById('stock-in-doc-ref')?.value || '').trim() || 'N/A';
 
       if (!sku)      { showToast('Please type or select a SKU first.', 'warning'); return; }
       if (qty <= 0)  { showToast('Quantity must be greater than 0.', 'error');     return; }
       if (!location) { showToast('Please specify a rack location.', 'warning');    return; }
+      
+      // Check price validation error
+      const priceError = document.getElementById('price-error');
+      if (priceError && priceError.style.display !== 'none' && priceError.textContent) {
+        showToast(`Price error: ${priceError.textContent}`, 'error');
+        return;
+      }
+      
+      // Validate expiry date
+      const expiryDateError = document.getElementById('expiry-date-error');
+      if (expiryDateError && expiryDateError.style.display !== 'none' && expiryDateError.textContent) {
+        showToast(`Expiry date error: ${expiryDateError.textContent}`, 'error');
+        return;
+      }
+      
+      if (expiryDate) {
+        const expiryValidation = validateExpiryDate(expiryDate);
+        if (!expiryValidation.valid) {
+          showToast(`Expiry date error: ${expiryValidation.message}`, 'error');
+          return;
+        }
+      }
+      
+      // Validate and parse price
+      let parsedPrice = 0;
+      if (priceInput) {
+        const priceValidation = validatePrice(priceInput);
+        if (!priceValidation.valid) {
+          priceError.textContent = priceValidation.message;
+          priceError.style.display = 'block';
+          showToast(`Price error: ${priceValidation.message}`, 'error');
+          return;
+        }
+        parsedPrice = parseFloat(priceInput);
+      }
 
       const product = await getProductBySku(sku);
       if (!product) {
@@ -2075,25 +2422,105 @@ function setupEventListeners() {
         return;
       }
 
+      // Detect price changes and log if different
+      if (parsedPrice > 0 && parsedPrice !== (product.price || 0)) {
+        const priceChange = await detectPriceChange(sku, parsedPrice);
+        if (priceChange) {
+          const changeMsg = priceChange.isIncrease 
+            ? `Price increased from ${formatCurrencyDisplay(priceChange.oldPrice)} to ${formatCurrencyDisplay(priceChange.newPrice)}`
+            : `Price decreased from ${formatCurrencyDisplay(priceChange.oldPrice)} to ${formatCurrencyDisplay(priceChange.newPrice)}`;
+          if (WMSDatabase.logPriceChange) {
+            WMSDatabase.logPriceChange(sku, priceChange.oldPrice, priceChange.newPrice, 'Stock In Update', 'System');
+          }
+          console.log('[WMS] Price change detected:', changeMsg);
+        }
+      }
+
+      // Log expiry alert if applicable
+      if (expiryDate && WMSDatabase.logExpiryAlert) {
+        const daysLeft = calculateDaysUntilExpiry(expiryDate);
+        let alertType = 'ok';
+        if (daysLeft < 0) alertType = 'expired';
+        else if (daysLeft <= 7) alertType = 'critical';
+        else if (daysLeft <= 30) alertType = 'near-expiry';
+        WMSDatabase.logExpiryAlert(sku, expiryDate, alertType);
+      }
+
       setButtonLoading(submitBtn, true);
       try {
         await WMSDatabase.logTransaction({
           type: 'Stock In', sku, productName: product.name,
           category: product.category, quantity: qty,
-          price, docRef, location, notes
+          price: parsedPrice, docRef, location, notes
         });
+        
+        // If price or expiry changed, update the product
+        if ((parsedPrice > 0 && parsedPrice !== (product.price || 0)) || expiryDate) {
+          await WMSDatabase.saveProduct({
+            ...product,
+            price: parsedPrice > 0 ? parsedPrice : product.price,
+            expiry_date: expiryDate || product.expiry_date
+          });
+        }
+        
         productsCache = null;
         stockInForm.reset();
         document.getElementById('stock-in-details').innerHTML = '';
+        const priceError = document.getElementById('price-error');
+        if (priceError) priceError.style.display = 'none';
+        const expiryError = document.getElementById('expiry-date-error');
+        if (expiryError) expiryError.style.display = 'none';
         showToast(`Stocked in ${qty} units of ${sku} at ${location}`, 'success');
         await initStockInForm();
         await renderDashboard();
+        await loadNearExpiryProducts();
       } catch (err) {
         showToast(`Error: ${err.message}`, 'error');
       } finally {
         setButtonLoading(submitBtn, false);
       }
     });
+
+    // Real-time expiry date validation on blur and change
+    const expiryDateInput = document.getElementById('stock-in-expiry-date');
+    const expiryDateError = document.getElementById('expiry-date-error');
+    if (expiryDateInput) {
+      expiryDateInput.addEventListener('blur', () => {
+        const dateValue = expiryDateInput.value.trim();
+        if (dateValue) {
+          const validation = validateExpiryDate(dateValue);
+          if (validation.valid) {
+            expiryDateError.style.display = 'none';
+            expiryDateError.textContent = '';
+          } else {
+            expiryDateError.style.display = 'block';
+            expiryDateError.textContent = validation.message;
+          }
+        } else {
+          // Clear error if field is empty (optional field)
+          expiryDateError.style.display = 'none';
+          expiryDateError.textContent = '';
+        }
+      });
+
+      expiryDateInput.addEventListener('change', () => {
+        const dateValue = expiryDateInput.value.trim();
+        if (dateValue) {
+          const validation = validateExpiryDate(dateValue);
+          if (validation.valid) {
+            expiryDateError.style.display = 'none';
+            expiryDateError.textContent = '';
+          } else {
+            expiryDateError.style.display = 'block';
+            expiryDateError.textContent = validation.message;
+          }
+        } else {
+          // Clear error if field is empty (optional field)
+          expiryDateError.style.display = 'none';
+          expiryDateError.textContent = '';
+        }
+      });
+    }
   }
 
   // Stock Out Form Submit
@@ -2368,6 +2795,9 @@ function setupEventListeners() {
 
   const filterZero = document.getElementById('hide-zero-stock');
   if (filterZero) filterZero.addEventListener('change', () => renderInventoryTable());
+
+  const filterExpiry = document.getElementById('filter-expiry-status');
+  if (filterExpiry) filterExpiry.addEventListener('change', () => renderInventoryTable());
 
   // Sidebar collapse toggle
   const sidebarToggle = document.getElementById('sidebar-toggle');
@@ -3294,6 +3724,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Wave 1-3: Realtime expiry changes
+  window.addEventListener('wms:expiry-changed', () => {
+    console.log('[WMS] Expiry data changed - refreshing near-expiry list');
+    loadNearExpiryProducts();
+    if (document.getElementById('inventory-table-body')) {
+      renderInventoryTable();
+    }
+  });
+
+  // Wave 2: Realtime price changes
+  window.addEventListener('wms:price-changed', () => {
+    console.log('[WMS] Price data changed');
+    productsCache = null;
+  });
+
+  // Wave 3: Realtime session changes
+  window.addEventListener('wms:sessions-changed', () => {
+    console.log('[WMS] Sessions changed');
+  });
+
   // Show skeleton KPIs immediately
   ['kpi-total-sku','kpi-total-stock','kpi-low-stock','kpi-out-of-stock'].forEach(id => {
     const el = document.getElementById(id);
@@ -3310,6 +3760,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateGlobalHeaderProfile();
   enforceUserPermissions();
   setupEventListeners();
+  
+  // Initialize session tracking and activity monitoring
+  await initializeSession();
 
   // Show/hide admin-only UI elements
   if (window.WMSAuth && WMSAuth.isAdmin()) {

@@ -232,6 +232,24 @@
             </table>
           </div>
         </div>
+
+        <!-- Near-Expiry Products Widget -->
+        <div class="widget widget-near-expiry">
+          <div class="widget-header">
+            <h3><i class="fa-solid fa-exclamation-circle"></i> Near-Expiry Products (30 Days)</h3>
+            <button class="btn-icon" onclick="loadNearExpiryProducts()" title="Refresh">
+              <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+          </div>
+          <div class="widget-content">
+            <div id="near-expiry-list"></div>
+            <div class="pagination-controls" style="margin-top: 12px; display: flex; justify-content: center; gap: 8px; align-items: center;">
+              <button onclick="nearExpiryPrevPage()" id="near-expiry-prev" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Previous</button>
+              <span id="near-expiry-page-info" style="font-size: 12px; color: var(--text-muted);">Page 1 of 1</span>
+              <button onclick="nearExpiryNextPage()" id="near-expiry-next" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Next</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -275,6 +293,14 @@
             <option value="out-of-stock">Out of Stock</option>
           </select>
 
+          <select id="filter-expiry-status" class="filter-select">
+            <option value="all">All Expiry Status</option>
+            <option value="expired">Expired</option>
+            <option value="near-expiry">Near-Expiry (≤30d)</option>
+            <option value="ok">OK (>30d)</option>
+            <option value="no-expiry">No Expiry</option>
+          </select>
+
           <label class="filter-checkbox-label" style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin-left: 10px;">
             <input type="checkbox" id="hide-zero-stock" checked style="width:16px; height:16px; accent-color: var(--accent); cursor: pointer;">
             <span>Hide Zero Stock</span>
@@ -304,6 +330,7 @@
                 <th class="sortable-header" data-sort="available_stock">Available <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="reorder_level">Reorder <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="price">Unit Price <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="expiry_status">Expiry Status <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="status">Status <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="updated_at">Last Updated <i class="fa-solid fa-sort"></i></th>
                 <th>Actions</th>
@@ -354,8 +381,23 @@
             </div>
 
             <div class="form-group">
-              <label for="stock-in-price">Unit Price (₱)</label>
-              <input type="number" id="stock-in-price" placeholder="e.g. 250.00" min="0" step="0.01">
+              <label for="stock-in-unit-cost">Unit Cost ($)</label>
+              <input type="number" id="stock-in-unit-cost" name="unitCost" 
+                     step="0.01" min="0" placeholder="0.00" />
+              <small class="help-text" style="color: var(--text-muted); display: block; margin-top: 4px;">Current price: <span id="current-price-display" style="font-weight: 600; color: var(--accent);">$0.00</span></small>
+              <span class="error-message" id="price-error" style="display: none; color: var(--danger-color); font-size: 12px; margin-top: 4px;"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="stock-in-expiry-date">Expiry Date (Optional)</label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="date" id="stock-in-expiry-date" placeholder="Leave blank if no expiry">
+                <button type="button" class="btn-icon" onclick="document.getElementById('stock-in-expiry-date').click()" title="Open calendar">
+                  <i class="fa-solid fa-calendar"></i>
+                </button>
+              </div>
+              <small style="color: var(--text-muted); display: block; margin-top: 4px;">Leave blank if product doesn't have an expiry date</small>
+              <span class="error-message" id="expiry-date-error" style="display: none; color: var(--danger-color); font-size: 12px; margin-top: 4px;"></span>
             </div>
 
             <div class="form-group form-group-full">

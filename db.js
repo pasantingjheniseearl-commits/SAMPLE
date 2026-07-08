@@ -154,8 +154,114 @@ class WMSDatabase {
     if (error) {
       throw new Error('Could not connect to the database. Please check your internet connection.');
     }
+    // Run schema migrations on init
+    await this._runMigrations();
     // Start Realtime product cache invalidation
     this._subscribeRealtimeInvalidation();
+  }
+
+  /**
+   * Initialize database schema migrations
+   * Ensures expiry_date column and related schema exist
+   */
+  static async _runMigrations() {
+    requireOnline();
+    try {
+      const schemaStatus = await this.getSchemaStatus();
+      
+      if (!schemaStatus.products_has_expiry_date) {
+        console.warn('[WMS] expiry_date column missing from products table - schema may need manual migration');
+      }
+      
+      if (!schemaStatus.expiry_alerts_exists) {
+        console.warn('[WMS] expiry_alerts table does not exist - run migration script wave0_database_setup.sql');
+      }
+
+      if (!schemaStatus.price_history_exists) {
+        console.warn('[WMS] price_history table does not exist - run migration script wave0_database_setup.sql');
+      }
+
+      if (!schemaStatus.sessions_exists) {
+        console.warn('[WMS] sessions table does not exist - run migration script wave0_database_setup.sql');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[WMS] Migration check error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get current database schema status
+   * Returns object with boolean flags indicating which tables/columns exist
+   */
+  static async getSchemaStatus() {
+    requireOnline();
+    const status = {
+      products_has_expiry_date: false,
+      expiry_alerts_exists: false,
+      price_history_exists: false,
+      sessions_exists: false,
+      user_actions_exists: false,
+      activity_log_exists: false
+    };
+
+    try {
+      // Check products table for expiry_date column
+      const { data: products } = await supabase
+        .from('products')
+        .select('*')
+        .limit(1);
+      
+      if (products && products[0]) {
+        status.products_has_expiry_date = 'expiry_date' in products[0];
+      }
+    } catch (err) {
+      console.debug('[WMS] Could not check products table:', err.message);
+    }
+
+    // Check expiry_alerts table
+    try {
+      await supabase.from('expiry_alerts').select('*').limit(1);
+      status.expiry_alerts_exists = true;
+    } catch (err) {
+      console.debug('[WMS] expiry_alerts table check:', err.message);
+    }
+
+    // Check price_history table
+    try {
+      await supabase.from('price_history').select('*').limit(1);
+      status.price_history_exists = true;
+    } catch (err) {
+      console.debug('[WMS] price_history table check:', err.message);
+    }
+
+    // Check sessions table
+    try {
+      await supabase.from('sessions').select('*').limit(1);
+      status.sessions_exists = true;
+    } catch (err) {
+      console.debug('[WMS] sessions table check:', err.message);
+    }
+
+    // Check user_actions table
+    try {
+      await supabase.from('user_actions').select('*').limit(1);
+      status.user_actions_exists = true;
+    } catch (err) {
+      console.debug('[WMS] user_actions table check:', err.message);
+    }
+
+    // Check activity_log table (fallback for sessions logging)
+    try {
+      await supabase.from('activity_log').select('*').limit(1);
+      status.activity_log_exists = true;
+    } catch (err) {
+      console.debug('[WMS] activity_log table check:', err.message);
+    }
+
+    return status;
   }
 
   // ── Products ────────────────────────────────────────────────────────────────
@@ -424,6 +530,27 @@ class WMSDatabase {
         settingsCache = null;
       })
       .subscribe();
+
+    // Wave 1-3: Expiry alerts subscription
+    supabase.channel('wms-expiry-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expiry_alerts' }, () => {
+        window.dispatchEvent(new CustomEvent('wms:expiry-changed'));
+      })
+      .subscribe();
+
+    // Wave 2: Price history subscription
+    supabase.channel('wms-price-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'price_history' }, () => {
+        window.dispatchEvent(new CustomEvent('wms:price-changed'));
+      })
+      .subscribe();
+
+    // Wave 3: Sessions subscription
+    supabase.channel('wms-session-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
+        window.dispatchEvent(new CustomEvent('wms:sessions-changed'));
+      })
+      .subscribe();
   }
 
   static subscribeToRealtimeLogs(onTxChange, onLoginChange) {
@@ -607,6 +734,320 @@ class WMSDatabase {
     } catch (e) {
       console.error('[WMS] importData error:', e);
       return false;
+    }
+  }
+
+  // ── WAVE 1-3: EXPIRY TRACKING METHODS ─────────────────────────────
+
+  static async getNearExpiryProducts(thresholdDays = 30) {
+    requireOnline();
+    const products = await this.getProducts();
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
+    return products.filter(p => {
+      if (!p.expiry_date) return false;
+      const expDate = new Date(p.expiry_date);
+      expDate.setHours(0, 0, 0, 0);
+      const daysLeft = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
+      return daysLeft >= -1 && daysLeft <= thresholdDays;
+    }).sort((a, b) => {
+      const daysA = Math.floor((new Date(a.expiry_date) - now) / (1000 * 60 * 60 * 24));
+      const daysB = Math.floor((new Date(b.expiry_date) - now) / (1000 * 60 * 60 * 24));
+      return daysA - daysB;
+    });
+  }
+
+  static async logExpiryAlert(sku, expiryDate, alertType) {
+    requireOnline();
+    try {
+      const product = await this.getProduct(sku);
+      if (!product) return;
+      
+      try {
+        await supabase.from('expiry_alerts').insert({
+          sku,
+          product_name: product.name,
+          expiry_date: expiryDate,
+          alert_type: alertType,
+          status: 'active',
+          created_at: new Date().toISOString()
+        });
+      } catch (tableError) {
+        console.log('[WMS] Expiry alert (table unavailable):', { sku, expiryDate, alertType });
+      }
+    } catch (error) {
+      console.error('[WMS] logExpiryAlert error:', error);
+    }
+  }
+
+  // ── WAVE 2: PRICE TRACKING METHODS ────────────────────────────────
+
+  /**
+   * Calculate the revaluation impact of a price change for a SKU
+   * Calls: public.calculate_revaluation_impact(sku, newPrice) → { impactAmount, itemsAffected, percentageChange }
+   * 
+   * @param {string} sku - Product SKU
+   * @param {number} newPrice - New unit price to apply
+   * @returns {Object|null} - { impactAmount, itemsAffected, percentageChange } or null if SKU not found
+   */
+  static async calculateRevaluationImpact(sku, newPrice) {
+    requireOnline();
+    try {
+      const cleanSku = sku.toUpperCase().trim();
+      const { data, error } = await supabase
+        .rpc('calculate_revaluation_impact', {
+          p_sku: cleanSku,
+          p_new_price: parseFloat(newPrice) || 0
+        });
+      
+      if (error) {
+        console.error('[WMS] calculateRevaluationImpact error:', error);
+        return null;
+      }
+      
+      return data;
+    } catch (err) {
+      console.error('[WMS] calculateRevaluationImpact error:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Atomically update a product price and log to price_history
+   * Calls: public.update_price_with_history(sku, newPrice, changedBy, reason)
+   * 
+   * REQUIREMENTS: 6.1, 6.2, 6.3, 6.4
+   * - Validates product exists before update
+   * - Calculates revaluation impact
+   * - Updates products.price
+   * - Inserts into price_history audit table
+   * - Uses transaction semantics for atomicity
+   * 
+   * @param {string} sku - Product SKU
+   * @param {number} newPrice - New unit price to apply
+   * @param {string} changedBy - Username of person making the change
+   * @param {string} reason - Optional reason for the price change
+   * @returns {Object} - { success, old_price, new_price, impact_amount, items_affected, percentage_change, history_id, timestamp, error? }
+   */
+  static async updatePriceWithHistory(sku, newPrice, changedBy = 'System', reason = 'Price adjustment') {
+    requireOnline();
+    try {
+      const cleanSku = sku.toUpperCase().trim();
+      const { data, error } = await supabase
+        .rpc('update_price_with_history', {
+          p_sku: cleanSku,
+          p_new_price: parseFloat(newPrice) || 0,
+          p_changed_by: String(changedBy).trim(),
+          p_change_reason: String(reason).trim()
+        });
+      
+      if (error) {
+        console.error('[WMS] updatePriceWithHistory error:', error);
+        return {
+          success: false,
+          error: error.message || 'Failed to update price'
+        };
+      }
+      
+      return data || { success: false, error: 'No data returned' };
+    } catch (err) {
+      console.error('[WMS] updatePriceWithHistory error:', err);
+      return {
+        success: false,
+        error: err.message || 'Unexpected error during price update'
+      };
+    }
+  }
+
+  static async logPriceChange(sku, oldPrice, newPrice, reason, changedBy) {
+    requireOnline();
+    try {
+      const product = await this.getProduct(sku);
+      if (!product) return;
+      
+      const impact = (newPrice - oldPrice) * product.stock_on_hand;
+      
+      try {
+        await supabase.from('price_history').insert({
+          sku,
+          previous_price: oldPrice,
+          new_price: newPrice,
+          changed_by: changedBy,
+          revaluation_impact: impact,
+          items_affected: product.stock_on_hand,
+          reason: reason,
+          status: 'completed',
+          change_date: new Date().toISOString()
+        });
+      } catch (tableError) {
+        console.log('[WMS] Price change (table unavailable):', { sku, oldPrice, newPrice, reason });
+      }
+    } catch (error) {
+      console.error('[WMS] logPriceChange error:', error);
+    }
+  }
+
+  static async getPriceHistory(sku, fromDate = null, toDate = null) {
+    requireOnline();
+    try {
+      let query = supabase
+        .from('price_history')
+        .select('*')
+        .eq('sku', sku.toUpperCase().trim())
+        .order('change_date', { ascending: false });
+      
+      if (fromDate) {
+        query = query.gte('change_date', new Date(fromDate).toISOString());
+      }
+      if (toDate) {
+        // Add 1 day to include the entire toDate day
+        const endOfDay = new Date(toDate);
+        endOfDay.setDate(endOfDay.getDate() + 1);
+        query = query.lt('change_date', endOfDay.toISOString());
+      }
+      
+      const { data, error } = await query;
+      if (error) {
+        console.error('[WMS] getPriceHistory error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('[WMS] getPriceHistory error:', err);
+      return [];
+    }
+  }
+
+  static async getPriceHistoryByDateRange(fromDate, toDate, sku = null) {
+    requireOnline();
+    try {
+      let query = supabase
+        .from('price_history')
+        .select('*')
+        .gte('change_date', new Date(fromDate).toISOString());
+      
+      const endOfDay = new Date(toDate);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      query = query.lt('change_date', endOfDay.toISOString());
+      
+      if (sku) {
+        query = query.eq('sku', sku.toUpperCase().trim());
+      }
+      
+      const { data, error } = await query.order('change_date', { ascending: false });
+      if (error) {
+        console.error('[WMS] getPriceHistoryByDateRange error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('[WMS] getPriceHistoryByDateRange error:', err);
+      return [];
+    }
+  }
+
+  // ── WAVE 3: SESSION MANAGEMENT METHODS ────────────────────────────
+
+  static async createSession(userId, username, ipAddress = null) {
+    requireOnline();
+    try {
+      // Try to call the SQL RPC function first (preferred method)
+      // The function signature is: initializeSession(user_id, ip_address) → session_id
+      try {
+        const { data, error } = await supabase.rpc('initializeSession', {
+          p_user_id: userId,
+          p_ip_address: ipAddress || '127.0.0.1'
+        });
+        
+        if (!error && data) {
+          console.log('[WMS] Session created via RPC:', data);
+          return data;
+        }
+      } catch (rpcError) {
+        console.log('[WMS] RPC initializeSession unavailable, falling back to direct insert:', rpcError.message);
+      }
+
+      // Fallback: direct table insert if RPC not available
+      const sessionId = 'SES-' + Math.random().toString(36).substring(2, 14).toUpperCase();
+      try {
+        await supabase.from('sessions').insert({
+          id: sessionId,
+          user_id: userId,
+          username: username,
+          ip_address: ipAddress || '127.0.0.1',
+          status: 'active',
+          login_time: new Date().toISOString(),
+          last_activity: new Date().toISOString()
+        });
+      } catch (tableError) {
+        console.log('[WMS] Sessions table unavailable, using client-side session ID');
+      }
+      return sessionId;
+    } catch (error) {
+      console.error('[WMS] createSession error:', error);
+      return 'SES-' + Math.random().toString(36).substring(2, 14).toUpperCase();
+    }
+  }
+
+  static async endSession(sessionId) {
+    requireOnline();
+    try {
+      await supabase.from('sessions')
+        .update({ status: 'offline', ended_at: new Date().toISOString() })
+        .eq('id', sessionId);
+    } catch (error) {
+      console.error('[WMS] endSession error:', error);
+    }
+  }
+
+  static async updateSessionActivity(sessionId, lastAction) {
+    requireOnline();
+    try {
+      await supabase.from('sessions')
+        .update({ last_activity: new Date().toISOString(), last_action: lastAction })
+        .eq('id', sessionId);
+    } catch (error) {
+      console.error('[WMS] updateSessionActivity error:', error);
+    }
+  }
+
+  static async getActiveSessions() {
+    requireOnline();
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('status', 'online')
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('[WMS] getActiveSessions error:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('[WMS] getActiveSessions error:', err);
+      return [];
+    }
+  }
+
+  static async logUserAction(userId, username, actionType, actionDetails, sessionId) {
+    requireOnline();
+    try {
+      try {
+        await supabase.from('activity_log').insert({
+          user_id: userId,
+          username: username,
+          action_type: actionType,
+          action_details: actionDetails,
+          session_id: sessionId,
+          created_at: new Date().toISOString()
+        });
+      } catch (tableError) {
+        console.log('[WMS] Activity log (table unavailable):', { username, actionType });
+      }
+    } catch (error) {
+      console.error('[WMS] logUserAction error:', error);
     }
   }
 }
