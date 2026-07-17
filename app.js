@@ -1214,6 +1214,32 @@ function drawFallbackBarcode(canvas, text) {
   }
 }
 
+// Redirect from topbar search to barcode scanner with proper async handling
+async function handleTopbarScanRedirect(sku) {
+  const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
+  const isOperator = authProfile ? authProfile.role === 'Operator' : false;
+  
+  if (isOperator) {
+    showToast('Use the Inventory search to look up SKUs.', 'warning');
+    return;
+  }
+  
+  // Switch to barcode view and wait for it to complete
+  const barcodeLink = document.querySelector('[data-view="view-barcode"]');
+  if (barcodeLink) {
+    barcodeLink.click();
+    // Wait a brief moment for the view to switch
+    await new Promise(r => setTimeout(r, 100));
+  }
+  
+  // Now safely set the scanner input and trigger scan
+  const scanInput = document.getElementById('mock-scan-input');
+  if (scanInput) {
+    scanInput.value = sku;
+    await triggerMockScan();
+  }
+}
+
 // Scanner trigger lookup
 async function triggerMockScan() {
   const input = document.getElementById('mock-scan-input');
@@ -1800,13 +1826,6 @@ async function renderSettingsSection() {
   // Settings inputs details
   document.getElementById('set-warehouse-name').value = settingsData.warehouseName || '';
   document.getElementById('set-low-threshold').value = settingsData.lowStockThreshold || 15;
-
-  // Active Operator selector
-  const userSelect = document.getElementById('set-active-operator');
-  if (userSelect && currentUser) {
-    userSelect.innerHTML = users.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join('');
-    userSelect.value = currentUser.username;
-  }
 
   // Category tags
   const catContainer = document.getElementById('settings-categories-list');
@@ -2734,20 +2753,12 @@ function setupEventListeners() {
       
       const wName = document.getElementById('set-warehouse-name').value.trim();
       const lowThresh = parseInt(document.getElementById('set-low-threshold').value) || 15;
-      const activeOpUsername = document.getElementById('set-active-operator').value;
 
       try {
         await WMSDatabase.saveSettings({
           warehouseName: wName,
           lowStockThreshold: lowThresh
         });
-
-        const users = await WMSDatabase.getUsers();
-        const targetUser = users.find(u => u.username === activeOpUsername);
-        if (targetUser) {
-          WMSDatabase.setCurrentUser(targetUser);
-          updateGlobalHeaderProfile();
-        }
 
         productsCache = null; // Settings threshold affects status colors
         document.getElementById('header-warehouse-title').textContent = wName;

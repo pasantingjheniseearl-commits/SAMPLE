@@ -130,12 +130,7 @@
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="text" id="topbar-search" placeholder="Quick SKU search..." onkeypress="
             if(event.key === 'Enter') {
-              const authProfile = window.WMSAuth && WMSAuth.profile ? WMSAuth.profile : null;
-              const isOperator = authProfile ? authProfile.role === 'Operator' : false;
-              if (isOperator) { window.showToast && showToast('Use the Inventory search to look up SKUs.', 'warning'); this.value = ''; return; }
-              document.querySelector('[data-view=\'view-barcode\']').click();
-              document.getElementById('mock-scan-input').value = this.value;
-              document.getElementById('mock-scan-btn').click();
+              handleTopbarScanRedirect(this.value);
               this.value = '';
             }">
         </div>
@@ -904,6 +899,10 @@
           <label for="add-price">Unit Price (₱)</label>
           <input type="number" id="add-price" placeholder="e.g. 250.00" min="0" step="0.01" value="0">
         </div>
+        <div class="form-group">
+          <label for="add-expiry">Expiry Date (Optional)</label>
+          <input type="date" id="add-expiry" placeholder="Select expiry date">
+        </div>
         <div class="form-group-full form-actions">
           <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-product-form').reset();">Clear Form</button>
           <button type="button" class="btn btn-secondary btn-danger" onclick="closeAddForm()">Cancel</button>
@@ -960,6 +959,10 @@
           <label for="edit-price">Unit Price (₱)</label>
           <input type="number" id="edit-price" min="0" step="0.01" value="0">
         </div>
+        <div class="form-group">
+          <label for="edit-expiry">Expiry Date (Optional)</label>
+          <input type="date" id="edit-expiry">
+        </div>
         <div class="form-group-full form-actions">
           <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-product-form').reset();">Clear Form</button>
           <button type="button" class="btn btn-secondary btn-danger" onclick="closeEditForm()">Cancel</button>
@@ -1008,7 +1011,7 @@
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- ==================== PROFILE MODAL ==================== --> 
+  <!-- ==================== PROFILE MODAL ==================== -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-content" style="width:600px;">
       <div class="modal-header">
