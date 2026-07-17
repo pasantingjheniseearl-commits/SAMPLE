@@ -1401,19 +1401,25 @@ async function triggerMockScan() {
   console.group('[triggerMockScan] Processing barcode/SKU');
   console.log('Raw input:', rawInput);
 
-  // Parse the input: if it's a 14-digit barcode, extract the 8-digit SKU
-  // Otherwise, treat it as a manually-typed SKU
-  let parsed;
-  if (window.parseScannedInput && typeof window.parseScannedInput === 'function') {
-    parsed = window.parseScannedInput(rawInput);
-    console.log('Parser result:', parsed);
+  // INLINE BARCODE EXTRACTION - Extract 8-digit SKU from 14-digit barcode
+  // Format: 02050-XXXXXXXX-C → Extract middle 8 digits (XXXXXXXX)
+  let sku = rawInput.toUpperCase();
+  let mode = 'manual';
+  
+  const digitsOnly = rawInput.replace(/\D/g, ''); // Remove all non-digits
+  console.log('Digits only:', digitsOnly, 'Length:', digitsOnly.length);
+  
+  // Check if it's a 14-digit barcode pattern: 02050 + 8 SKU digits + 1 check digit
+  if (/^02050\d{9}$/.test(digitsOnly)) {
+    // Extract middle 8 digits (positions 5-12)
+    sku = digitsOnly.substring(5, 13);
+    mode = 'barcode';
+    console.log('[BARCODE] Detected and extracted SKU:', sku);
   } else {
-    console.warn('[triggerMockScan] parseScannedInput not available, treating as manual SKU');
-    parsed = { mode: 'manual', sku: rawInput.toUpperCase() };
+    console.log('[MANUAL] Using as-is SKU:', sku);
   }
   
-  const sku = parsed.sku;
-  console.log('Final SKU to lookup:', sku, '| Mode:', parsed.mode);
+  console.log('Final SKU to lookup:', sku, '| Mode:', mode);
 
   playScanSound();
   const product = await getProductBySku(sku);
