@@ -140,8 +140,6 @@ DECLARE
   v_items_affected INT;
   v_percentage_change NUMERIC;
   v_history_id UUID;
-  v_current_inventory_value NUMERIC;
-  v_new_inventory_value NUMERIC;
 BEGIN
   -- Verify product exists and capture current state
   SELECT 
@@ -175,10 +173,6 @@ BEGIN
   v_items_affected := (v_impact_json->>'itemsAffected')::INT;
   v_percentage_change := (v_impact_json->>'percentageChange')::NUMERIC;
   
-  -- Calculate inventory values for audit trail
-  v_current_inventory_value := v_old_price * v_stock_quantity;
-  v_new_inventory_value := p_new_price * v_stock_quantity;
-  
   -- Atomically: (1) Update product price
   UPDATE public.products
   SET 
@@ -189,28 +183,24 @@ BEGIN
   -- Atomically: (2) Insert audit record into price_history
   INSERT INTO public.price_history (
     sku,
-    old_price,
+    previous_price,
     new_price,
-    stock_quantity,
-    inventory_value_before,
-    inventory_value_after,
-    revaluation_gain_loss,
-    changed_by,
-    change_reason,
     change_date,
-    approved
+    changed_by,
+    revaluation_impact,
+    items_affected,
+    reason,
+    status
   ) VALUES (
     p_sku,
     v_old_price,
     p_new_price,
-    v_stock_quantity,
-    v_current_inventory_value,
-    v_new_inventory_value,
-    v_impact_amount,
-    p_changed_by,
-    p_change_reason,
     CURRENT_TIMESTAMP,
-    TRUE
+    p_changed_by,
+    v_impact_amount,
+    v_stock_quantity,
+    p_change_reason,
+    'completed'
   )
   RETURNING id INTO v_history_id;
   

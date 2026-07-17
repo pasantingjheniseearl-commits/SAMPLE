@@ -172,6 +172,10 @@ let nearExpiryCurrentPage = 1;
 let nearExpiryData = [];
 const NEAR_EXPIRY_PAGE_SIZE = 5;
 
+// Session expiration constants
+const SESSION_INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+const SESSION_MAX_LIFETIME = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
 async function initializeSession() {
   const user = WMSDatabase.getCurrentUser();
   if (!user) return;
@@ -186,6 +190,96 @@ async function initializeSession() {
   } catch (error) {
     console.error('[WMS] Session init error:', error);
   }
+}
+
+async function checkSessionExpiration() {
+  const sessionId = localStorage.getItem('wms_session_id');
+  const sessionStart = localStorage.getItem('wms_session_start');
+  
+  if (!sessionId || !sessionStart) {
+    // No session data stored — this shouldn't happen after login, but handle gracefully
+    return true; // Treat as not expired
+  }
+
+  try {
+    // Fetch current session from database
+    if (!WMSDatabase.getSession) {
+      console.warn('[WMS] getSession method not available, skipping expiration check');
+      return true; // Cannot check, allow session to continue
+    }
+
+    const session = await WMSDatabase.getSession(sessionId);
+    
+    if (!session) {
+      // Session not found in database — it was invalidated or never created
+      console.log('[WMS] Session not found in database');
+      return false;
+    }
+
+    const now = new Date();
+    const lastActivityTime = new Date(session.last_activity);
+    const createdTime = new Date(session.login_time || session.created_at);
+    
+    // Check inactivity timeout: 30 minutes of no activity
+    const inactivityDuration = now - lastActivityTime;
+    if (inactivityDuration > SESSION_INACTIVITY_TIMEOUT) {
+      console.log('[WMS] Session expired due to inactivity:', inactivityDuration, 'ms');
+      return false;
+    }
+
+    // Check maximum lifetime: 24 hours since creation
+    const sessionDuration = now - createdTime;
+    if (sessionDuration > SESSION_MAX_LIFETIME) {
+      console.log('[WMS] Session expired due to max lifetime exceeded:', sessionDuration, 'ms');
+      return false;
+    }
+
+    // Session is still valid
+    return true;
+  } catch (error) {
+    console.error('[WMS] Session expiration check error:', error);
+    // On error, allow session to continue rather than forcing logout
+    return true;
+  }
+}
+
+async function forceLogout() {
+  try {
+    // End session in database
+    const sessionId = localStorage.getItem('wms_session_id');
+    if (sessionId && WMSDatabase.endSession) {
+      try {
+        await WMSDatabase.endSession(sessionId);
+      } catch (e) {
+        console.error('[WMS] Error ending session:', e);
+      }
+    }
+  } catch (error) {
+    console.error('[WMS] Force logout error:', error);
+  }
+
+  // Clear session data
+  localStorage.removeItem('wms_session_id');
+  localStorage.removeItem('wms_session_start');
+  localStorage.removeItem('wms_user_id');
+  
+  // Clear activity tracking
+  if (activityUpdateTimer) {
+    clearInterval(activityUpdateTimer);
+    activityUpdateTimer = null;
+  }
+
+  // Show toast and redirect
+  showToast('Your session has expired. Please log in again.', 'warning');
+  
+  // Delay redirect slightly to ensure toast displays
+  setTimeout(() => {
+    if (WMSAuth && WMSAuth.signOut) {
+      WMSAuth.signOut();
+    } else {
+      window.location.replace('login.html');
+    }
+  }, 500);
 }
 
 function startActivityTracking() {
@@ -596,11 +690,11 @@ function buildInventoryRow(p) {
     <td>${escapeHtml(p.category)}</td>
     <td style="font-size:12px;"><i class="fa-solid fa-location-dot" style="margin-right:5px;font-size:11px;color:var(--text-muted);"></i>${escapeHtml(formatLocationDisplay(p.location, p.stock_on_hand))}</td>
     <td style="font-weight:600;">${escapeHtml(p.stock_on_hand)}</td>
+    <td>${renderExpiryStatusCell(p)}</td>
     <td style="color:var(--text-secondary);font-weight:500;">${escapeHtml(p.reserved_stock)}</td>
     <td style="font-weight:700;color:${p.available_stock<=0?'var(--danger-color)':'var(--text-primary)'};">${escapeHtml(p.available_stock)}</td>
     <td style="color:var(--text-muted);font-family:monospace;">${escapeHtml(p.reorder_level)}</td>
     <td style="color:var(--text-muted);font-family:monospace;">₱${Number(p.price||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-    <td>${renderExpiryStatusCell(p)}</td>
     <td><span class="status ${statusClass}">${escapeHtml(p.status)}</span></td>
     <td style="font-size:12px;color:var(--text-muted);">${formattedDate}</td>
     <td><div class="actions">${actionsHtml}</div></td>
@@ -698,7 +792,7 @@ async function renderInventoryTable() {
   if (countEl) countEl.textContent = `${filtered.length.toLocaleString()} products`;
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:35px;color:var(--text-muted);font-size:14px;">No products found matching the criteria.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:35px;color:var(--text-muted);font-size:14px;">No products found matching the criteria.</td></tr>';
     const pre = document.getElementById('vs-spacer-top');
     const post = document.getElementById('vs-spacer-bottom');
     if (pre) pre.style.height = '0px';
@@ -925,6 +1019,55 @@ async function initStockInForm() {
         // Auto-format valid prices
         priceEl.value = validation.formatted.replace('$', '');
         errorEl.style.display = 'none';
+      }
+    });
+  }
+
+  // Wire up real-time expiry date validation
+  const expiryDateEl = document.getElementById('stock-in-expiry-date');
+  if (expiryDateEl && !expiryDateEl.dataset.wired) {
+    expiryDateEl.dataset.wired = '1';
+    
+    // Validate on blur (when user leaves the field)
+    expiryDateEl.addEventListener('blur', () => {
+      const expiryValue = expiryDateEl.value.trim();
+      const errorEl = document.getElementById('expiry-date-error');
+      
+      // Clear error on blur if empty (optional field when blank)
+      if (!expiryValue) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        return;
+      }
+      
+      const validation = validateExpiryDate(expiryValue);
+      if (!validation.valid) {
+        errorEl.textContent = validation.message;
+        errorEl.style.display = 'block';
+      } else {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+      }
+    });
+    
+    // Validate on change (real-time feedback)
+    expiryDateEl.addEventListener('change', () => {
+      const expiryValue = expiryDateEl.value.trim();
+      const errorEl = document.getElementById('expiry-date-error');
+      
+      if (!expiryValue) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        return;
+      }
+      
+      const validation = validateExpiryDate(expiryValue);
+      if (!validation.valid) {
+        errorEl.textContent = validation.message;
+        errorEl.style.display = 'block';
+      } else {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
       }
     });
   }
@@ -2075,6 +2218,106 @@ window.quickTransact = function(type, sku) {
     }, 150);
   }
 };
+
+// ── BULK STOCK IN / STOCK OUT ─────────────────────────────────────
+let bulkRowCounter = 0;
+async function addBulkRow(type) {
+  const tbody = document.getElementById(`bulk-${type}-rows`);
+  if (!tbody) return;
+  const rowId = `bulk-row-${type}-${++bulkRowCounter}`;
+  const settingsData = await WMSDatabase.getSettings();
+  const locOptions = settingsData.locations.map(l => `<option value="${l}">${l}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.id = rowId;
+  if (type === 'in') {
+    tr.innerHTML = `<td><input type="text" class="bulk-sku" list="stock-in-sku-list" placeholder="SKU" autocomplete="off" style="width:100%;"></td><td><select class="bulk-location" style="width:100%;">${locOptions}</select></td><td><input type="number" class="bulk-qty" min="1" placeholder="Qty" style="width:90px;"></td><td><input type="number" class="bulk-price" min="0" step="0.01" placeholder="0.00" style="width:100px;"></td><td><input type="text" class="bulk-docref" placeholder="Doc Ref" style="width:100%;"></td><td><input type="text" class="bulk-notes" placeholder="Notes" style="width:100%;"></td><td><button type="button" class="action-btn delete" onclick="document.getElementById('${rowId}').remove()"><i class="fa-solid fa-trash"></i></button></td>`;
+  } else {
+    tr.innerHTML = `<td><input type="text" class="bulk-sku" list="stock-out-sku-list" placeholder="SKU" autocomplete="off" style="width:100%;"></td><td><select class="bulk-location" style="width:100%;"><option value="">Type SKU first</option></select></td><td><input type="number" class="bulk-qty" min="1" placeholder="Qty" style="width:90px;"></td><td><input type="number" class="bulk-price" min="0" step="0.01" placeholder="0.00" style="width:100px;"></td><td><input type="text" class="bulk-docref" placeholder="Doc Ref" style="width:100%;"></td><td><input type="text" class="bulk-notes" placeholder="Notes" style="width:100%;"></td><td><button type="button" class="action-btn delete" onclick="document.getElementById('${rowId}').remove()"><i class="fa-solid fa-trash"></i></button></td>`;
+  }
+  tbody.appendChild(tr);
+  // Stock Out: populate the per-row location dropdown from that row's SKU
+  if (type === 'out') {
+    const skuInput = tr.querySelector('.bulk-sku');
+    const locSelect = tr.querySelector('.bulk-location');
+    skuInput.addEventListener('input', async () => {
+      const sku = skuInput.value.trim().toUpperCase();
+      const product = await getProductBySku(sku);
+      if (!product) {
+        locSelect.innerHTML = '<option value="">SKU not found</option>';
+        return;
+      }
+      const locMap = window.parseLocations ? window.parseLocations(product.location, product.stock_on_hand) : {};
+      const available = Object.entries(locMap).filter(([, qty]) => qty > 0);
+      locSelect.innerHTML = available.length
+        ? available.map(([loc, qty]) => `<option value="${loc}">${loc} (${qty})</option>`).join('')
+        : '<option value="">No stock available</option>';
+    });
+  }
+}
+async function submitBulkStockIn()  { await submitBulkBatch('in'); }
+async function submitBulkStockOut() { await submitBulkBatch('out'); }
+// Processes rows SEQUENTIALLY (not in parallel) — prevents two rows for the
+// same SKU/location from racing each other and reading stale stock counts.
+async function submitBulkBatch(type) {
+  const tbody = document.getElementById(`bulk-${type}-rows`);
+  const resultsEl = document.getElementById(`bulk-${type}-results`);
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (rows.length === 0) {
+    showToast('Add at least one row before submitting.', 'warning');
+    return;
+  }
+  const outcomes = []; // { row, sku, status, message }
+  for (const row of rows) {
+    const sku      = row.querySelector('.bulk-sku')?.value.trim().toUpperCase();
+    const location = row.querySelector('.bulk-location')?.value;
+    const qty      = parseInt(row.querySelector('.bulk-qty')?.value) || 0;
+    const price    = parseFloat(row.querySelector('.bulk-price')?.value) || 0;
+    const docRef   = row.querySelector('.bulk-docref')?.value.trim() || 'N/A';
+    const notes    = row.querySelector('.bulk-notes')?.value.trim() || '';
+    if (!sku && !qty) continue; // skip fully blank rows silently
+    try {
+      if (!sku) throw new Error('SKU is required.');
+      if (qty <= 0) throw new Error('Quantity must be greater than 0.');
+      if (!location) throw new Error('Location is required.');
+      const product = await getProductBySku(sku);
+      if (!product) throw new Error(`SKU ${sku} not found in catalog.`);
+      if (type === 'out') {
+        const locMap = window.parseLocations ? window.parseLocations(product.location, product.stock_on_hand) : {};
+        const locQty = locMap[location] || 0;
+        if (locQty < qty) throw new Error(`Only ${locQty} units available at ${location}.`);
+      }
+      await WMSDatabase.logTransaction({
+        type: type === 'in' ? 'Stock In' : 'Stock Out',
+        sku, productName: product.name, category: product.category,
+        quantity: qty, price, docRef, location, notes
+      });
+      outcomes.push({ row, sku, status: 'success', message: `${qty} units @ ${location}` });
+    } catch (err) {
+      outcomes.push({ row, sku: sku || '(blank)', status: 'error', message: err.message });
+    }
+  }
+  // Refresh dependent views once, after the whole batch finishes
+  productsCache = null;
+  await renderDashboard();
+  if (type === 'in') await renderStockInHistoryTable(); else await renderStockOutHistoryTable();
+  await updateSkuDatalists();
+  const successCount = outcomes.filter(o => o.status === 'success').length;
+  const failCount = outcomes.filter(o => o.status === 'error').length;
+  if (resultsEl) {
+    resultsEl.innerHTML = outcomes.length === 0 ? '' : `<div style="font-weight:700;margin-bottom:8px;">Batch complete: <span style="color:var(--success-color);">${successCount} succeeded</span>${failCount > 0 ? `, <span style="color:var(--danger-color);">${failCount} failed</span>` : ''}</div>${outcomes.map(o => `<div style="padding:6px 10px;border-radius:6px;margin-bottom:4px;font-size:12px;background:${o.status === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'};color:${o.status === 'success' ? 'var(--success-color)' : 'var(--danger-color)'};"><strong>${escapeHtml(o.sku)}</strong> — ${escapeHtml(o.message)}</div>`).join('')}`;
+  }
+  if (outcomes.length > 0) {
+    showToast(`Batch: ${successCount} succeeded, ${failCount} failed`, failCount > 0 ? 'warning' : 'success');
+  } else {
+    showToast('No rows to process.', 'warning');
+  }
+  // Remove only successful rows — failed/blank rows stay for correction
+  outcomes.forEach(o => { if (o.status === 'success') o.row.remove(); });
+}
+window.addBulkRow = addBulkRow;
+window.submitBulkStockIn = submitBulkStockIn;
+window.submitBulkStockOut = submitBulkStockOut;
 
 // exportCSV kept for backward compatibility — redirects to exportFilteredCSV
 window.exportCSV = function() { window.exportFilteredCSV(); };
@@ -3693,6 +3936,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof WMSAuth._renderHeaderUser === 'function') {
       WMSAuth._renderHeaderUser();
     }
+  }
+
+  // ── Check for session expiration on page load ─────────────────
+  const sessionValid = await checkSessionExpiration();
+  if (!sessionValid) {
+    // Session has expired, force logout and show message
+    await forceLogout();
+    return; // Stop initialization
   }
 
   // Restore sidebar collapsed preference

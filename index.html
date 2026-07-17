@@ -321,22 +321,22 @@
                 <th class="sortable-header" data-sort="category">Category <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="location">Warehouse Location <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="stock_on_hand">Stock On Hand <i class="fa-solid fa-sort"></i></th>
+                <th class="sortable-header" data-sort="expiry_status">Expiry Status <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="reserved_stock">Reserved <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="available_stock">Available <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="reorder_level">Reorder <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="price">Unit Price <i class="fa-solid fa-sort"></i></th>
-                <th class="sortable-header" data-sort="expiry_status">Expiry Status <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="status">Status <i class="fa-solid fa-sort"></i></th>
                 <th class="sortable-header" data-sort="updated_at">Last Updated <i class="fa-solid fa-sort"></i></th>
                 <th>Actions</th>
               </tr>
             </thead>
             <!-- Top spacer pushes rendered rows to the correct scroll offset -->
-            <tbody id="vs-spacer-top-body"><tr id="vs-spacer-top" style="height:0px;"><td colspan="12" style="padding:0;border:none;"></td></tr></tbody>
+            <tbody id="vs-spacer-top-body"><tr id="vs-spacer-top" style="height:0px;"><td colspan="13" style="padding:0;border:none;"></td></tr></tbody>
             <!-- Only the visible slice of rows is rendered here by renderVirtualRows() -->
             <tbody id="inventory-table-body"></tbody>
             <!-- Bottom spacer maintains total scrollable height -->
-            <tbody id="vs-spacer-bottom-body"><tr id="vs-spacer-bottom" style="height:0px;"><td colspan="12" style="padding:0;border:none;"></td></tr></tbody>
+            <tbody id="vs-spacer-bottom-body"><tr id="vs-spacer-bottom" style="height:0px;"><td colspan="13" style="padding:0;border:none;"></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -409,6 +409,42 @@
               <button type="submit" class="btn"><i class="fa-solid fa-plus"></i> Confirm Stock In</button>
             </div>
           </form>
+
+          <!-- Bulk Stock In Section -->
+          <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="margin: 0; font-size: 16px; font-weight: 600;">Bulk Intake (Multiple SKUs)</h4>
+              <button type="button" class="btn btn-secondary" onclick="addBulkRow('in')" title="Add row">
+                <i class="fa-solid fa-plus"></i> Add Row
+              </button>
+            </div>
+            <div style="overflow-x: auto; margin-bottom: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead style="background: rgba(0,0,0,0.1);">
+                  <tr>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">SKU</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Location</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Qty</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Unit Cost</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Doc Ref</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Notes</th>
+                    <th style="padding: 10px; text-align: center; font-weight: 600;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="bulk-in-rows" style="border-top: 1px solid var(--border-color);">
+                  <!-- Rows added dynamically -->
+                </tbody>
+              </table>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button type="button" class="btn" onclick="submitBulkStockIn()">
+                <i class="fa-solid fa-check"></i> Submit Bulk Stock In
+              </button>
+            </div>
+            <div id="bulk-in-results" style="margin-top: 12px; font-size: 12px;">
+              <!-- Results shown here -->
+            </div>
+          </div>
         </div>
 
         <!-- History list -->
@@ -495,6 +531,42 @@
               <button type="submit" class="btn btn-danger" style="background: rgb(239, 68, 68); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);"><i class="fa-solid fa-minus"></i> Confirm Stock Out</button>
             </div>
           </form>
+
+          <!-- Bulk Stock Out Section -->
+          <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="margin: 0; font-size: 16px; font-weight: 600;">Bulk Dispatch (Multiple SKUs)</h4>
+              <button type="button" class="btn btn-secondary" onclick="addBulkRow('out')" title="Add row">
+                <i class="fa-solid fa-plus"></i> Add Row
+              </button>
+            </div>
+            <div style="overflow-x: auto; margin-bottom: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead style="background: rgba(0,0,0,0.1);">
+                  <tr>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">SKU</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Location</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Qty</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Unit Price</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Doc Ref</th>
+                    <th style="padding: 10px; text-align: left; font-weight: 600;">Notes</th>
+                    <th style="padding: 10px; text-align: center; font-weight: 600;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="bulk-out-rows" style="border-top: 1px solid var(--border-color);">
+                  <!-- Rows added dynamically -->
+                </tbody>
+              </table>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button type="button" class="btn btn-danger" onclick="submitBulkStockOut()" style="background: rgb(239, 68, 68); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);">
+                <i class="fa-solid fa-check"></i> Submit Bulk Stock Out
+              </button>
+            </div>
+            <div id="bulk-out-results" style="margin-top: 12px; font-size: 12px;">
+              <!-- Results shown here -->
+            </div>
+          </div>
         </div>
 
         <!-- History list -->
@@ -521,6 +593,7 @@
         </div>
       </div>
     </section>
+
 
     <!-- VIEW 5: BARCODE & SCANNER -->
     <section id="view-barcode" class="page-view">

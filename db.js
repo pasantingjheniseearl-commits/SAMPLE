@@ -1031,6 +1031,25 @@ class WMSDatabase {
     }
   }
 
+  static async getSession(sessionId) {
+    requireOnline();
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .maybeSingle();
+      if (error) {
+        console.error('[WMS] getSession error:', error);
+        return null;
+      }
+      return data || null;
+    } catch (err) {
+      console.error('[WMS] getSession error:', err);
+      return null;
+    }
+  }
+
   static async logUserAction(userId, username, actionType, actionDetails, sessionId) {
     requireOnline();
     try {

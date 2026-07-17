@@ -375,6 +375,11 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- 14.1 Create sessions table for real-time user tracking
+-- Session Expiration Policy:
+--   - Sessions expire after 30 minutes of inactivity (check last_activity timestamp)
+--   - Sessions expire after 24 hours maximum lifetime (check login_time timestamp)
+--   - Expired sessions must be marked as 'inactive' or 'expired'
+--   - Application must validate session expiration on page load and activity
 CREATE TABLE IF NOT EXISTS public.sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id VARCHAR(255) NOT NULL,
@@ -382,6 +387,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   session_id VARCHAR(500) NOT NULL UNIQUE,
   login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  logout_time TIMESTAMP DEFAULT NULL,
   last_action VARCHAR(255),
   ip_address VARCHAR(45),
   user_agent TEXT,
@@ -471,6 +477,7 @@ RETURNS VOID AS $$
 BEGIN
   UPDATE public.sessions
   SET status = 'inactive',
+      logout_time = CURRENT_TIMESTAMP,
       last_activity = CURRENT_TIMESTAMP
   WHERE session_id = p_session_id;
 END;
@@ -501,6 +508,44 @@ BEGIN
   WHERE session_id = p_session_id;
   
   RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 14.2b.3 PostgreSQL Function: Check if session has expired
+-- Returns TRUE if session is expired (either by inactivity or max lifetime)
+-- Inactivity timeout: 30 minutes
+-- Maximum lifetime: 24 hours
+CREATE OR REPLACE FUNCTION public.is_session_expired(
+  p_session_id VARCHAR
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_session_record RECORD;
+  v_inactivity_timeout_minutes INT := 30;
+  v_max_lifetime_hours INT := 24;
+  v_current_time TIMESTAMP := CURRENT_TIMESTAMP;
+BEGIN
+  SELECT id, login_time, last_activity, status
+  INTO v_session_record
+  FROM public.sessions
+  WHERE session_id = p_session_id;
+  
+  -- If session not found or already inactive, consider it expired
+  IF NOT FOUND OR v_session_record.status != 'active' THEN
+    RETURN TRUE;
+  END IF;
+  
+  -- Check inactivity timeout (30 minutes)
+  IF EXTRACT(EPOCH FROM (v_current_time - v_session_record.last_activity)) / 60 > v_inactivity_timeout_minutes THEN
+    RETURN TRUE;
+  END IF;
+  
+  -- Check maximum lifetime (24 hours)
+  IF EXTRACT(EPOCH FROM (v_current_time - v_session_record.login_time)) / 3600 > v_max_lifetime_hours THEN
+    RETURN TRUE;
+  END IF;
+  
+  RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql;
 
