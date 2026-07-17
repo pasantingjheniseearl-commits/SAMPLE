@@ -1387,18 +1387,38 @@ async function handleTopbarScanRedirect(sku) {
 async function triggerMockScan() {
   const input = document.getElementById('mock-scan-input');
   const resultBox = document.getElementById('mock-scan-result');
-  if (!input || !resultBox) return;
+  if (!input || !resultBox) {
+    console.error('[triggerMockScan] Missing input or resultBox elements');
+    return;
+  }
 
   const rawInput = input.value.trim();
-  if (!rawInput) return;
+  if (!rawInput) {
+    console.warn('[triggerMockScan] Empty input');
+    return;
+  }
+
+  console.group('[triggerMockScan] Processing barcode/SKU');
+  console.log('Raw input:', rawInput);
 
   // Parse the input: if it's a 14-digit barcode, extract the 8-digit SKU
   // Otherwise, treat it as a manually-typed SKU
-  const parsed = window.parseScannedInput ? window.parseScannedInput(rawInput) : { mode: 'manual', sku: rawInput.toUpperCase() };
+  let parsed;
+  if (window.parseScannedInput && typeof window.parseScannedInput === 'function') {
+    parsed = window.parseScannedInput(rawInput);
+    console.log('Parser result:', parsed);
+  } else {
+    console.warn('[triggerMockScan] parseScannedInput not available, treating as manual SKU');
+    parsed = { mode: 'manual', sku: rawInput.toUpperCase() };
+  }
+  
   const sku = parsed.sku;
+  console.log('Final SKU to lookup:', sku, '| Mode:', parsed.mode);
 
   playScanSound();
   const product = await getProductBySku(sku);
+  console.log('Product lookup result:', product);
+  console.groupEnd();
 
   if (product) {
     let statusClass = 'in-stock';
@@ -1421,7 +1441,7 @@ async function triggerMockScan() {
         </div>
       </div>
     `;
-    showToast(`Scanner: Scanned ${product.sku} successfully`, 'success');
+    showToast(`Scanner: Scanned ${escapeHtml(product.sku)} successfully`, 'success');
   } else {
     resultBox.innerHTML = `
       <div style="color:var(--danger-color); padding: 15px; text-align:center; border: 1px dashed var(--danger-color); border-radius: var(--border-radius-md); margin-top: 20px;">
@@ -2959,20 +2979,25 @@ function setupEventListeners() {
     // Handle Enter key to submit scan
     scanInput.addEventListener('keypress', async (e) => {
       if (e.key === 'Enter') {
+        e.preventDefault();
         await triggerMockScan();
       }
     });
     
     // Prevent Find popup (Ctrl+F / Cmd+F) while scanner input is focused
-    // to avoid interrupting barcode scanning workflow
+    // Use capture phase to intercept BEFORE any other handlers
     scanInput.addEventListener('keydown', (e) => {
-      // Block Ctrl+F (Windows/Linux) and Cmd+F (Mac)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      const isCtrlF = (e.ctrlKey && e.key.toLowerCase() === 'f');
+      const isCmdF = (e.metaKey && e.key.toLowerCase() === 'f');
+      
+      if (isCtrlF || isCmdF) {
+        console.log('[Scanner] Find popup blocked - barcode scanning active');
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         showToast('Find is disabled during barcode scanning', 'warning');
       }
-    });
+    }, true); // true = capture phase (intercept early)
   }
 
   // User Operators Form Submit
@@ -4057,14 +4082,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isScannerActive = barcodeView && barcodeView.classList.contains('active');
     
     if (isScannerActive) {
-      // Block Ctrl+F (Windows/Linux) and Cmd+F (Mac)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      const isCtrlF = (e.ctrlKey && e.key.toLowerCase() === 'f');
+      const isCmdF = (e.metaKey && e.key.toLowerCase() === 'f');
+      
+      if (isCtrlF || isCmdF) {
+        console.log('[Global] Find popup blocked - scanner view active');
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         showToast('Find is disabled during barcode scanning mode', 'warning');
       }
     }
-  }, true); // Capture phase to intercept before other handlers
+  }, true); // Capture phase for early interception to intercept before other handlers
 
   // SAFETY MECHANISM: Ensure sidebar footer is always displaying the current logged-in user
   // by setting up a periodic refresh that catches any edge cases where stale data might show
