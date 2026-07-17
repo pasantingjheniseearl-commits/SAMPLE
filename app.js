@@ -1421,6 +1421,14 @@ async function triggerMockScan() {
   
   console.log('Final SKU to lookup:', sku, '| Mode:', mode);
 
+  // DEBUG: Show what products are in cache
+  const products = await getCachedProducts();
+  console.log('Total products in cache:', products.length);
+  console.log('First 5 SKUs in cache:', products.slice(0, 5).map(p => p.sku));
+  console.log('Looking for SKU:', sku);
+  const matchingSku = products.find(p => p.sku === sku);
+  console.log('Exact match result:', matchingSku ? 'FOUND' : 'NOT FOUND');
+
   playScanSound();
   const product = await getProductBySku(sku);
   console.log('Product lookup result:', product);
@@ -1449,9 +1457,18 @@ async function triggerMockScan() {
     `;
     showToast(`Scanner: Scanned ${escapeHtml(product.sku)} successfully`, 'success');
   } else {
+    // Show detailed debugging info
+    const products = await getCachedProducts();
+    const allSkus = products.map(p => p.sku).join(', ');
+    
     resultBox.innerHTML = `
       <div style="color:var(--danger-color); padding: 15px; text-align:center; border: 1px dashed var(--danger-color); border-radius: var(--border-radius-md); margin-top: 20px;">
         <i class="fa-solid fa-triangle-exclamation"></i> SKU Not Found in Database.
+        <div style="font-size:12px; margin-top:10px; color:var(--text-secondary);">
+          <strong>Searched for:</strong> ${escapeHtml(sku)}<br>
+          <strong>Mode:</strong> ${mode}<br>
+          <strong>Available SKUs:</strong> ${allSkus || '(none)'}
+        </div>
       </div>
     `;
     showToast(`Scanner Error: SKU ${escapeHtml(sku)} not found`, 'error');
