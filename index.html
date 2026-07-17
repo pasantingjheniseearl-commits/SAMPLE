@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="styles.css">
@@ -27,86 +27,120 @@
   <script src="db.js"></script>
   <!-- Auth guard — redirects to login.html if not authenticated -->
   <script src="auth.js"></script>
+
+  <style>
+    :root{--ink:#101828;--ink-soft:#344054;--muted:#667085;--faint:#98A2B3;--canvas:#F5F6F8;--surface:#FFFFFF;--border:#E4E7EC;--border-soft:#EDEFF3;--accent:#0D9488;--accent-dark:#0F766E;--accent-tint:#EFFCFA;--accent-tint-strong:#CCFBF1;--success:#16A34A;--success-bg:#ECFDF3;--warning:#B45309;--warning-bg:#FFFBEB;--danger:#DC2626;--danger-bg:#FEF3F2;--presence-live:#22C55E;--presence-away:#F59E0B;--presence-off:#D0D5DD;--sidebar-bg:#0E1420;--sidebar-border:rgba(255,255,255,.07);--sidebar-text:rgba(255,255,255,.68);--sidebar-text-dim:rgba(255,255,255,.36);--sidebar-hover:rgba(255,255,255,.06);--sidebar-active-bg:rgba(45,212,191,.14);--sidebar-active-text:#5EEAD4;--sidebar-w:250px;--sidebar-w-collapsed:70px;--radius-lg:16px;--radius-md:10px;--radius-sm:7px;--shadow-card:0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06);--shadow-card-hover:0 4px 12px rgba(16,24,40,0.08), 0 2px 4px rgba(16,24,40,0.04);}
+    
+    .redesign-shell *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}
+    .redesign-shell{display:flex;min-height:100vh;}
+    .redesign-shell h1,h2,h3,.brand-name{font-family:'Manrope',sans-serif;}
+    .redesign-shell .mono{font-family:'JetBrains Mono',monospace;}
+    
+    .redesign-shell .sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;position:fixed;left:0;top:0;height:100vh;z-index:100;overflow:hidden;transition:width .22s cubic-bezier(.4,0,.2,1),box-shadow .22s;}
+    body.sidebar-collapsed .redesign-shell .sidebar{width:var(--sidebar-w-collapsed);}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover{width:var(--sidebar-w);box-shadow:14px 0 32px rgba(16,24,40,.35);}
+    .redesign-shell .main{margin-left:var(--sidebar-w);transition:margin-left .22s cubic-bezier(.4,0,.2,1);}
+    body.sidebar-collapsed .redesign-shell .main{margin-left:var(--sidebar-w-collapsed);}
+    
+    .redesign-shell .sidebar-toggle-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:13.5px;}
+    .redesign-shell .sidebar-toggle-btn:hover{background:var(--canvas);}
+    .redesign-shell .sidebar-toggle-btn:active{transform:scale(.94);}
+    
+    .redesign-shell .brand-text,.redesign-shell .nav-label,.redesign-shell .me-text{white-space:nowrap;overflow:hidden;max-width:200px;opacity:1;transition:max-width .18s cubic-bezier(.4,0,.2,1),opacity .12s,margin .18s;}
+    .redesign-shell .nav-group-label{overflow:hidden;max-height:20px;opacity:1;transition:max-height .18s,opacity .12s,padding .18s;}
+    body.sidebar-collapsed .redesign-shell .sidebar .brand-text,body.sidebar-collapsed .redesign-shell .sidebar .me-text,body.sidebar-collapsed .redesign-shell .sidebar .nav-label{max-width:0;opacity:0;margin-left:0;}
+    body.sidebar-collapsed .redesign-shell .sidebar .nav-group-label{max-height:0;opacity:0;padding-top:0;padding-bottom:0;}
+    body.sidebar-collapsed .redesign-shell .sidebar .nav-badge{opacity:0;pointer-events:none;width:0;overflow:hidden;}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover .brand-text,body.sidebar-collapsed .redesign-shell .sidebar:hover .me-text,body.sidebar-collapsed .redesign-shell .sidebar:hover .nav-label{max-width:200px;opacity:1;transition:max-width .2s .05s,opacity .18s .08s;}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover .nav-group-label{max-height:20px;opacity:1;padding-bottom:8px;transition:max-height .2s .05s,opacity .18s .08s,padding .2s .05s;}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover .nav-badge{opacity:1;pointer-events:auto;width:auto;transition:opacity .18s .1s;}
+    body.sidebar-collapsed .redesign-shell .sidebar .nav-item{justify-content:center;gap:0;}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover .nav-item{justify-content:flex-start;gap:11px;}
+    body.sidebar-collapsed .redesign-shell .sidebar .sidebar-top{justify-content:center;gap:0;}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover .sidebar-top{justify-content:flex-start;gap:11px;}
+    body.sidebar-collapsed .redesign-shell .sidebar .me-card{justify-content:center;gap:0;}
+    body.sidebar-collapsed .redesign-shell .sidebar:hover .me-card{justify-content:flex-start;gap:10px;}
+    
+    .redesign-shell .sidebar-top{padding:22px 20px 18px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--sidebar-border);}
+    .redesign-shell .brand-mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent-dark) 100%);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;box-shadow:0 3px 10px rgba(13,148,136,.4);flex-shrink:0;}
+    .redesign-shell .brand-name{font-size:15px;font-weight:800;color:#fff;letter-spacing:-.2px;}
+    .redesign-shell .brand-sub{font-size:10.5px;color:var(--sidebar-text-dim);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-top:1px;}
+    
+    .redesign-shell .nav-group{padding:16px 12px 4px;}
+    .redesign-shell .nav-group-label{font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--sidebar-text-dim);padding:0 10px 8px;}
+    .redesign-shell .nav-item{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;color:var(--sidebar-text);text-decoration:none;font-size:13.5px;font-weight:500;margin-bottom:2px;cursor:pointer;position:relative;transition:background .15s, color .15s;}
+    .redesign-shell .nav-item i{width:18px;text-align:center;font-size:14px;color:var(--sidebar-text-dim);transition:color .15s;}
+    .redesign-shell .nav-item:hover{background:var(--sidebar-hover);color:#fff;}
+    .redesign-shell .nav-item.active{background:var(--sidebar-active-bg);color:var(--sidebar-active-text);font-weight:700;box-shadow:inset 3px 0 0 var(--sidebar-active-text);}
+    .redesign-shell .nav-item.active i{color:var(--sidebar-active-text);}
+    .redesign-shell .nav-badge{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+    
+    .redesign-shell .sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid var(--sidebar-border);}
+    .redesign-shell .me-card{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:rgba(255,255,255,.05);}
+    .redesign-shell .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent) 0%,var(--accent-dark) 100%);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11.5px;flex-shrink:0;position:relative;}
+    .redesign-shell .me-name{font-size:12.5px;font-weight:700;color:#fff;}
+    .redesign-shell .me-role{font-size:10.5px;color:var(--sidebar-text-dim);}
+    
+    .redesign-shell .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+    .redesign-shell .topbar{height:66px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:20;}
+    .redesign-shell .topbar h1{font-size:17px;font-weight:800;letter-spacing:-.3px;}
+    .redesign-shell .topbar-right{display:flex;align-items:center;gap:14px;}
+    .redesign-shell .search-box{display:flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);border-radius:9px;padding:8px 12px;width:230px;}
+    .redesign-shell .search-box i{color:var(--faint);font-size:12.5px;}
+    .redesign-shell .search-box input{background:transparent;border:none;outline:none;font-size:13px;color:var(--ink);width:100%;}
+    .redesign-shell .search-box input::placeholder{color:var(--faint);}
+    .redesign-shell .icon-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:14px;}
+    .redesign-shell .icon-btn:hover{background:var(--canvas);}
+    
+    .redesign-shell .content{padding:26px 28px 60px;flex:1;}
+    
+    .redesign-shell .tab-view{display:none;}
+    .redesign-shell .tab-view.active{display:block;animation:fadein .2s ease;}
+    @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+  </style>
 </head>
 <body>
 
+  <div class="redesign-shell">
   <!-- SIDEBAR NAVIGATION -->
   <aside class="sidebar">
     <!-- Brand / Logo -->
-    <div class="sidebar-brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="100" cy="100" r="95" fill="#06b6d4" opacity="0.1" stroke="#06b6d4" stroke-width="2"/><g id="warehouse-left"><rect x="30" y="60" width="70" height="90" fill="#06b6d4" rx="4"/><polygon points="30,60 65,20 100,60" fill="#06b6d4"/><rect x="50" y="100" width="30" height="45" fill="#1a1a1a" rx="2"/><circle cx="78" cy="122" r="2" fill="#fbbf24"/></g><g id="warehouse-right"><rect x="100" y="75" width="60" height="75" fill="#1a1a1a" rx="3"/><g fill="#06b6d4" opacity="0.3"><rect x="110" y="85" width="12" height="12"/><rect x="130" y="85" width="12" height="12"/><rect x="110" y="105" width="12" height="12"/><rect x="130" y="105" width="12" height="12"/><rect x="110" y="125" width="12" height="12"/><rect x="130" y="125" width="12" height="12"/></g></g><rect x="30" y="155" width="130" height="3" fill="#06b6d4" rx="1.5"/><g id="stacks" opacity="0.6"><rect x="145" y="130" width="8" height="8" fill="#06b6d4"/><rect x="145" y="140" width="8" height="8" fill="#1a1a1a"/><rect x="145" y="150" width="8" height="8" fill="#06b6d4"/></g></svg>
-      </div>
+    <div class="sidebar-top">
+      <div class="brand-mark"><i class="fa-solid fa-warehouse"></i></div>
       <div class="brand-text">
-        <div class="brand-name">Warehouse WMS</div>
-        <div class="brand-sub">Inventory Control</div>
+        <div class="brand-name">Ace Remnants</div>
+        <div class="brand-sub">Warehouse WMS</div>
       </div>
     </div>
 
-    <ul class="menu">
-      <li>
-        <a href="#" class="active" data-view="view-dashboard" data-label="Dashboard">
-          <div class="nav-icon"><i class="fa-solid fa-chart-line"></i></div>
-          <span class="nav-label">Dashboard</span>
-        </a>
-      </li>
-      <li>
-        <a href="#" data-view="view-inventory" data-label="Inventory">
-          <div class="nav-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
-          <span class="nav-label">Inventory</span>
-        </a>
-      </li>
-      <li>
-        <a href="#" data-view="view-stock-in" data-label="Stock In">
-          <div class="nav-icon"><i class="fa-solid fa-arrow-down-long"></i></div>
-          <span class="nav-label">Stock In</span>
-        </a>
-      </li>
-      <li>
-        <a href="#" data-view="view-stock-out" data-label="Stock Out">
-          <div class="nav-icon"><i class="fa-solid fa-arrow-up-long"></i></div>
-          <span class="nav-label">Stock Out</span>
-        </a>
-      </li>
-      <li class="admin-only">
-        <a href="#" data-view="view-barcode" data-label="Barcode &amp; Scan">
-          <div class="nav-icon"><i class="fa-solid fa-barcode"></i></div>
-          <span class="nav-label">Barcode &amp; Scan</span>
-        </a>
-      </li>
-      <li class="admin-only">
-        <a href="#" data-view="view-reports" data-label="Reports">
-          <div class="nav-icon"><i class="fa-solid fa-chart-pie"></i></div>
-          <span class="nav-label">Reports</span>
-        </a>
-      </li>
-      <li class="admin-only">
-        <a href="#" data-view="view-approvals" data-label="User Approvals">
-          <div class="nav-icon"><i class="fa-solid fa-user-check"></i></div>
-          <span class="nav-label">User Approvals</span>
-        </a>
-      </li>
-      <li class="admin-only">
-        <a href="#" data-view="view-activity-log" data-label="Activity Log">
-          <div class="nav-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
-          <span class="nav-label">Activity Log</span>
-        </a>
-      </li>
-      <li class="admin-only">
-        <a href="#" data-view="view-settings" data-label="Settings">
-          <div class="nav-icon"><i class="fa-solid fa-gear"></i></div>
-          <span class="nav-label">Settings</span>
-        </a>
-      </li>
-    </ul>
+    <div class="nav-group">
+      <div class="nav-group-label">Overview</div>
+      <div class="nav-item active" data-tab="dashboard" data-view="view-dashboard" data-label="Dashboard"><i class="fa-solid fa-chart-line"></i><span class="nav-label">Dashboard</span></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Operations</div>
+      <div class="nav-item" data-tab="inventory" data-view="view-inventory" data-label="Inventory"><i class="fa-solid fa-boxes-stacked"></i><span class="nav-label">Inventory</span></div>
+      <div class="nav-item" data-tab="stock-in" data-view="view-stock-in" data-label="Stock In"><i class="fa-solid fa-arrow-down-long"></i><span class="nav-label">Stock In</span></div>
+      <div class="nav-item" data-tab="stock-out" data-view="view-stock-out" data-label="Stock Out"><i class="fa-solid fa-arrow-up-long"></i><span class="nav-label">Stock Out</span></div>
+      <div class="nav-item" data-tab="barcode" data-view="view-barcode" data-label="Barcode &amp; Scan"><i class="fa-solid fa-barcode"></i><span class="nav-label">Barcode &amp; Scan</span></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Admin</div>
+      <div class="nav-item" data-tab="reports" data-view="view-reports" data-label="Reports"><i class="fa-solid fa-chart-pie"></i><span class="nav-label">Reports</span></div>
+      <div class="nav-item" data-tab="approvals" data-view="view-approvals" data-label="User Approvals"><i class="fa-solid fa-user-check"></i><span class="nav-label">User Approvals</span><span class="nav-badge">2</span></div>
+      <div class="nav-item" data-tab="activity" data-view="view-activity-log" data-label="Activity Log"><i class="fa-solid fa-clock-rotate-left"></i><span class="nav-label">Activity Log</span></div>
+      <div class="nav-item" data-tab="settings" data-view="view-settings" data-label="Settings"><i class="fa-solid fa-gear"></i><span class="nav-label">Settings</span></div>
+    </div>
 
     <!-- Active User Status -->
     <div class="sidebar-footer">
-      <div class="user-profile-badge">
-        <div class="user-avatar-small" id="global-profile-initials">JP</div>
-        <div class="user-info-small">
-          <span class="name" id="global-header-username">John Doe</span>
-          <span class="role" id="global-header-role">Warehouse Admin</span>
+      <div class="me-card">
+        <div class="avatar" id="global-profile-initials">JP</div>
+        <div class="me-text">
+          <div class="me-name" id="global-header-username">John Doe</div>
+          <div class="me-role" id="global-header-role">Warehouse Admin</div>
         </div>
       </div>
     </div>
@@ -117,15 +151,14 @@
     
     <!-- TOP HEADER -->
     <div class="topbar">
-      <div class="topbar-left">
+      <div style="display:flex;align-items:center;gap:14px;">
         <button class="sidebar-toggle-btn" id="sidebar-toggle" title="Toggle sidebar">
           <i class="fa-solid fa-bars"></i>
         </button>
-        <h1 id="header-warehouse-title">Warehouse Dashboard</h1>
+        <h1 id="header-warehouse-title">Dashboard</h1>
       </div>
 
-      <div class="top-actions">
-        <!-- Search bar triggers redirection to Mock Scanner -->
+      <div class="topbar-right">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input type="text" id="topbar-search" placeholder="Quick SKU search..." onkeypress="
@@ -136,24 +169,24 @@
         </div>
 
         <!-- Light/Dark Mode toggler -->
-        <button class="theme-toggle-btn" id="theme-toggle" title="Toggle theme">
+        <button class="icon-btn" id="theme-toggle" title="Toggle theme">
           <i class="fa-solid fa-sun"></i>
         </button>
 
         <!-- Profile button -->
-        <button class="theme-toggle-btn" id="profile-btn" title="My Profile" onclick="openProfileModal()">
+        <button class="icon-btn" id="profile-btn" title="My Profile" onclick="openProfileModal()">
           <i class="fa-solid fa-circle-user"></i>
         </button>
 
         <!-- Logout -->
-        <button class="theme-toggle-btn" id="logout-btn" title="Sign Out" onclick="WMSAuth.signOut()">
+        <button class="icon-btn" id="logout-btn" title="Sign Out" onclick="WMSAuth.signOut()">
           <i class="fa-solid fa-right-from-bracket"></i>
         </button>
       </div>
     </div>
 
-    <!-- All views live inside .page-content for uniform padding -->
-    <div class="page-content">
+    <!-- All views live inside .content for uniform padding -->
+    <div class="content">
 
     <!-- VIEW 1: DASHBOARD -->
     <section id="view-dashboard" class="page-view active">

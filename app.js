@@ -527,7 +527,7 @@ function enforceUserPermissions() {
 
   // If operator is on a restricted view, force redirect to dashboard
   const restrictedViews = ['view-barcode', 'view-reports', 'view-settings', 'view-approvals', 'view-activity-log'];
-  const activeLink = document.querySelector('.sidebar .menu a.active');
+  const activeLink = document.querySelector('.sidebar .menu a.active, .sidebar .nav-item.active');
   if (activeLink) {
     const activeView = activeLink.getAttribute('data-view');
     if (isOperator && restrictedViews.includes(activeView)) {
@@ -547,7 +547,7 @@ function enforceUserPermissions() {
 }
 
 function _redirectToDashboard() {
-  document.querySelectorAll('.sidebar .menu a').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.sidebar .menu a, .sidebar .nav-item').forEach(l => l.classList.remove('active'));
   document.querySelectorAll('.main .page-view').forEach(p => p.classList.remove('active'));
   const dashLink = document.querySelector('[data-view="view-dashboard"]');
   if (dashLink) dashLink.classList.add('active');
@@ -2398,12 +2398,14 @@ window.resetDatabaseTrigger = async function() {
 // --- ELEMENT EVENT LISTENERS REGISTRATION ---
 function setupEventListeners() {
   // Sidebar View Switcher Navigation
-  document.querySelectorAll('.sidebar .menu a').forEach(link => {
+  // Support both old .menu a and new .nav-item div structures
+  const navElements = document.querySelectorAll('.sidebar .menu a, .sidebar .nav-item');
+  navElements.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
       
       // Deactivate all links and pages
-      document.querySelectorAll('.sidebar .menu a').forEach(l => l.classList.remove('active'));
+      document.querySelectorAll('.sidebar .menu a, .sidebar .nav-item').forEach(l => l.classList.remove('active'));
       document.querySelectorAll('.main .page-view').forEach(p => p.classList.remove('active'));
       
       // Activate selected
