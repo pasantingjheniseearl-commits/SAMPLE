@@ -1389,8 +1389,13 @@ async function triggerMockScan() {
   const resultBox = document.getElementById('mock-scan-result');
   if (!input || !resultBox) return;
 
-  const sku = input.value.trim().toUpperCase();
-  if (!sku) return;
+  const rawInput = input.value.trim();
+  if (!rawInput) return;
+
+  // Parse the input: if it's a 14-digit barcode, extract the 8-digit SKU
+  // Otherwise, treat it as a manually-typed SKU
+  const parsed = window.parseScannedInput ? window.parseScannedInput(rawInput) : { mode: 'manual', sku: rawInput.toUpperCase() };
+  const sku = parsed.sku;
 
   playScanSound();
   const product = await getProductBySku(sku);
@@ -2951,9 +2956,21 @@ function setupEventListeners() {
   
   if (scanBtn) scanBtn.addEventListener('click', async () => await triggerMockScan());
   if (scanInput) {
+    // Handle Enter key to submit scan
     scanInput.addEventListener('keypress', async (e) => {
       if (e.key === 'Enter') {
         await triggerMockScan();
+      }
+    });
+    
+    // Prevent Find popup (Ctrl+F / Cmd+F) while scanner input is focused
+    // to avoid interrupting barcode scanning workflow
+    scanInput.addEventListener('keydown', (e) => {
+      // Block Ctrl+F (Windows/Linux) and Cmd+F (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast('Find is disabled during barcode scanning', 'warning');
       }
     });
   }
@@ -4030,6 +4047,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const adminTab = document.getElementById('ptab-admin');
     if (adminTab) adminTab.style.display = '';
   }
+
+  // Global Find blocker: Prevent Ctrl+F / Cmd+F when barcode scanner is active
+  // This blocks search popups in Chrome, Firefox, Safari, and Edge to maintain
+  // uninterrupted barcode scanning workflow in warehouse environments
+  document.addEventListener('keydown', (e) => {
+    // Check if barcode scanner view is currently active
+    const barcodeView = document.getElementById('view-barcode');
+    const isScannerActive = barcodeView && barcodeView.classList.contains('active');
+    
+    if (isScannerActive) {
+      // Block Ctrl+F (Windows/Linux) and Cmd+F (Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast('Find is disabled during barcode scanning mode', 'warning');
+      }
+    }
+  }, true); // Capture phase to intercept before other handlers
 
   // SAFETY MECHANISM: Ensure sidebar footer is always displaying the current logged-in user
   // by setting up a periodic refresh that catches any edge cases where stale data might show
