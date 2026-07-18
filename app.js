@@ -20,7 +20,7 @@ let sortDirection = 'asc';
 // Virtual Scroll State for Inventory Table
 // Stores the current filtered+sorted dataset so the scroll handler can render slices
 let vsFilteredData = [];
-let vsRowHeight = 53;       // px height of each <tr> — keep in sync with CSS
+let vsRowHeight = 66;       // px height of each <tr> — keep in sync with CSS
 let vsOverscan = 5;         // extra rows rendered above/below the visible window
 let vsScrollRAF = null;     // requestAnimationFrame token for scroll throttling
 
